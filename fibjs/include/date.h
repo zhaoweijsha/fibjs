@@ -6,6 +6,7 @@
  */
 
 #include <string>
+#include <stdint.h>
 
 #ifndef DATE_H_
 #define DATE_H_
@@ -26,8 +27,6 @@ public:
 
 namespace fibjs
 {
-
-extern v8::Isolate *isolate;
 
 class date_t
 {
@@ -69,7 +68,8 @@ public:
         d = v8::base::OS::TimeCurrentMillis();
     }
 
-    void create(int Y, int M, int D, int h, int m, int s, int ms);
+    void create(int32_t Y, int32_t M, int32_t D, int32_t h, int32_t m, int32_t s, int32_t ms);
+    void fromDosTime(int32_t tm);
 
     date_t &operator=(double v)
     {
@@ -89,7 +89,7 @@ public:
         return *this;
     }
 
-    operator v8::Local<v8::Value>() const
+    v8::Local<v8::Value> value(v8::Isolate* isolate) const
     {
         return v8::Date::New(isolate, d);
     }
@@ -104,17 +104,19 @@ public:
         return d - d1.d;
     }
 
-    void add(int num, int part = _SECOND);
-    void fix(int part = _SECOND);
+    void add(int32_t num, int32_t part = _SECOND);
+    void fix(int32_t part = _SECOND);
 
     void toLocal();
     void toUTC();
 
-    void parse(const char *str, int len = -1);
+    void parse(const char *str, int32_t len = -1);
     void toGMTString(std::string &retVal);
     void toX509String(std::string &retVal);
     void sqlString(std::string &retVal);
     void stamp(std::string &retVal);
+
+    static int32_t timezone();
 
 private:
     double d;

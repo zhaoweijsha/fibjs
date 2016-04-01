@@ -14,41 +14,25 @@
 #include "utils.h"
 #include "ClassInfo.h"
 #include "Runtime.h"
+#include "AsyncCall.h"
 
 #undef min
 #undef max
-
-#ifdef assert
-#undef assert
-#endif
 
 namespace fibjs
 {
 
 #include "object_async.inl"
 
-class asyncEvent: public exlib::AsyncEvent
-{
-public:
-    virtual void js_callback()
-    {
-    }
-
-    virtual void invoke()
-    {
-    }
-};
-
-class asyncCallBack: public asyncEvent
-{
-public:
-    virtual void callback();
-};
+#define JSOBJECT_JSVALUE        1
+#define JSOBJECT_JSHANDLE       2
+#define JSOBJECT_JSREFFER       4
 
 class object_base: public obj_base
 {
 public:
     object_base() :
+        m_isolate(NULL), m_isJSObject(0),
         m_nExtMemory(sizeof(object_base) * 2), m_nExtMemoryDelay(0)
     {
         object_base::class_info().Ref();
@@ -56,54 +40,40 @@ public:
 
     virtual ~object_base()
     {
+        assert(!(m_isJSObject & JSOBJECT_JSREFFER));
+
+        clear_handle();
         object_base::class_info().Unref();
     }
 
 public:
-    virtual void Ref()
-    {
-        if (internalRef() == 1)
-        {
-            if (!handle_.IsEmpty())
-                handle_.ClearWeak();
-        }
-    }
-
     virtual void Unref()
     {
         if (internalUnref() == 0)
         {
-            if (exlib::Service::hasService())
+            if (m_isJSObject)
             {
-                if (!handle_.IsEmpty())
-                    handle_.SetWeak(this, WeakCallback);
-                else
-                    delete this;
-            }
-            else
-            {
-                if (isJSObject())
-                {
-                    internalRef();
-                    m_ar.post(0);
-                }
-                else
-                    delete this;
-            }
+                assert(!m_weak.m_inlist);
+
+                Isolate* isolate = m_isolate;
+
+                isolate->m_weakLock.lock();
+                isolate->m_weak.putTail(&m_weak);
+                isolate->m_weakLock.unlock();
+            } else
+                delete this;
         }
     }
 
-    virtual bool isJSObject()
-    {
-        return !handle_.IsEmpty();
-    }
+private:
+    exlib::linkitem m_weak;
 
 public:
     virtual void enter()
     {
         if (!m_lock.trylock())
         {
-            v8::Unlocker unlocker(isolate);
+            Isolate::rt _rt;
             m_lock.lock();
         }
     }
@@ -115,67 +85,90 @@ public:
 
     exlib::Locker m_lock;
 
-public:
-    static bool switchToAsync(exlib::AsyncEvent *ac)
-    {
-        if (m_singleUserMode)
-            return false;
-
-        return !ac;
-    }
-
-    static bool m_singleUserMode;
-
-public:
-    class asyncRelease: public asyncCallBack
-    {
-    public:
-        virtual void js_callback()
-        {
-            object_base *pThis = NULL;
-
-            pThis = (object_base *) ((char *) this
-                                     - ((char *) &pThis->m_ar - (char *) 0));
-
-            pThis->Unref();
-        }
-    };
-
 private:
-
-    asyncRelease m_ar;
     v8::Persistent<v8::Object> handle_;
+
+public:
+    static void gc_delete(exlib::linkitem* node)
+    {
+        object_base *pThis = NULL;
+        pThis = (object_base *) ((char *) node
+                                 - ((char *) &pThis->m_weak - (char *) 0));
+
+        delete pThis;
+    }
 
 private:
     static void WeakCallback(const v8::WeakCallbackData<v8::Object, object_base> &data)
     {
-        data.GetParameter()->internalDispose();
+        assert(!data.GetParameter()->handle_.IsEmpty());
+        object_base *pThis = data.GetParameter();
+
+        assert(pThis->m_isJSObject & JSOBJECT_JSREFFER);
+
+        pThis->handle_.ClearWeak();
+
+        pThis->m_isJSObject &= ~JSOBJECT_JSREFFER;
+        if (pThis->internalUnref() == 0)
+            delete pThis;
+    }
+
+private:
+    Isolate* m_isolate;
+    int32_t m_isJSObject;
+
+public:
+    Isolate* holder()
+    {
+        Isolate* isolate = m_isolate;
+
+        if (isolate)
+            return isolate;
+
+        return m_isolate = Isolate::current();
+    }
+
+    const char* typeName()
+    {
+        return Classinfo().name();
+    }
+
+    void setJSObject()
+    {
+        m_isJSObject |= 1;
+        holder();
+
+        assert(m_isolate != 0);
     }
 
 public:
-    v8::Local<v8::Object> wrap(v8::Local<v8::Object> o)
+    v8::Local<v8::Object> wrap(v8::Local<v8::Object> o = v8::Local<v8::Object>())
     {
-        if (handle_.IsEmpty())
+        Isolate* isolate = holder();
+        v8::Isolate* v8_isolate = isolate->m_isolate;
+
+        if (!(m_isJSObject & JSOBJECT_JSHANDLE))
         {
             if (o.IsEmpty())
-                o = Classinfo().CreateInstance();
-            handle_.Reset(isolate, o);
+                o = Classinfo().CreateInstance(isolate);
+            handle_.Reset(v8_isolate, o);
             o->SetAlignedPointerInInternalField(0, this);
 
-            isolate->AdjustAmountOfExternalAllocatedMemory(m_nExtMemory);
+            v8_isolate->AdjustAmountOfExternalAllocatedMemory(m_nExtMemory);
 
-            return o;
+            m_isJSObject |= JSOBJECT_JSHANDLE;
+        }
+        else
+            o = v8::Local<v8::Object>::New(v8_isolate, handle_);
+
+        if (!(m_isJSObject & JSOBJECT_JSREFFER))
+        {
+            m_isJSObject |= JSOBJECT_JSREFFER;
+            internalRef();
+            handle_.SetWeak(this, WeakCallback);
         }
 
-        return v8::Local<v8::Object>::New(isolate, handle_);
-    }
-
-    v8::Local<v8::Object> wrap()
-    {
-        if (handle_.IsEmpty())
-            return wrap(Classinfo().CreateInstance());
-
-        return v8::Local<v8::Object>::New(isolate, handle_);
+        return o;
     }
 
 public:
@@ -207,10 +200,10 @@ public:
     result_t off(const char *ev, int32_t &retVal);
     result_t off(v8::Local<v8::Object> map, int32_t &retVal);
     result_t trigger(const char *ev, const v8::FunctionCallbackInfo<v8::Value> &args);
-    result_t _trigger(const char *ev, v8::Local<v8::Value> *args, int argCount);
-    result_t _trigger(const char *ev, Variant *args, int argCount);
+    result_t _trigger(const char *ev, v8::Local<v8::Value> *args, int32_t argCount);
+    result_t _trigger(const char *ev, Variant *args, int32_t argCount);
 
-    void extMemory(int ext)
+    void extMemory(int32_t ext)
     {
         if (handle_.IsEmpty())
             m_nExtMemory += ext;
@@ -221,9 +214,11 @@ public:
 
             if (ext != 0)
             {
-                if (exlib::Service::hasService())
+                Isolate* isolate = m_isolate;
+
+                if (isolate && Isolate::current() == isolate)
                 {
-                    isolate->AdjustAmountOfExternalAllocatedMemory(ext);
+                    isolate->m_isolate->AdjustAmountOfExternalAllocatedMemory(ext);
                     m_nExtMemory += ext;
                 }
                 else
@@ -237,35 +232,51 @@ private:
                                         bool autoDelete = false);
 
 private:
-    int m_nExtMemory;
-    int m_nExtMemoryDelay;
-
-    result_t internalDispose()
-    {
-        if (!handle_.IsEmpty())
-        {
-            handle_.ClearWeak();
-            v8::Local<v8::Object>::New(isolate, handle_)->SetAlignedPointerInInternalField(
-                0, 0);
-            handle_.Reset();
-
-            isolate->AdjustAmountOfExternalAllocatedMemory(-m_nExtMemory);
-
-            obj_base::dispose();
-        }
-
-        return 0;
-    }
+    int32_t m_nExtMemory;
+    int32_t m_nExtMemoryDelay;
 
 public:
     template<typename T>
     static void __new(const T &args) {}
 
+private:
+    void clear_handle()
+    {
+        if (m_isJSObject & JSOBJECT_JSHANDLE)
+        {
+            m_isJSObject &= ~JSOBJECT_JSHANDLE;
+
+            Isolate* isolate = holder();
+            v8::Isolate* v8_isolate = isolate->m_isolate;
+
+            v8::Local<v8::Object>::New(v8_isolate, handle_)->SetAlignedPointerInInternalField(
+                0, 0);
+            handle_.Reset();
+
+            v8_isolate->AdjustAmountOfExternalAllocatedMemory(-m_nExtMemory);
+        }
+    }
+
 public:
     // object_base
     virtual result_t dispose()
     {
-        return internalDispose();
+        clear_handle();
+
+        if (m_isJSObject & JSOBJECT_JSREFFER)
+        {
+            m_isJSObject &= ~JSOBJECT_JSREFFER;
+            if (internalUnref() == 0)
+                delete this;
+        }
+
+        return 0;
+    }
+
+    virtual result_t equals(object_base* expected, bool& retVal)
+    {
+        retVal = expected == this;
+        return 0;
     }
 
     virtual result_t toString(std::string &retVal)
@@ -277,7 +288,7 @@ public:
     virtual result_t toJSON(const char *key, v8::Local<v8::Value> &retVal)
     {
         v8::Local<v8::Object> o = wrap();
-        v8::Local<v8::Object> o1 = v8::Object::New(isolate);
+        v8::Local<v8::Object> o1 = v8::Object::New(holder()->m_isolate);
 
         extend(o, o1);
         retVal = o1;
@@ -295,34 +306,41 @@ public:
     static void block_set(v8::Local<v8::String> property,
                           v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<void> &info)
     {
+        Isolate* isolate = Isolate::current();
+
         std::string strError = "Property \'";
 
         strError += *v8::String::Utf8Value(property);
         strError += "\' is read-only.";
-        isolate->ThrowException(
-            v8::String::NewFromUtf8(isolate, strError.c_str(),
-                                    v8::String::kNormalString, (int) strError.length()));
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8(strError));
     }
 
     static void i_IndexedSetter(uint32_t index,
                                 v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value> &info)
     {
-        isolate->ThrowException(
-            v8::String::NewFromUtf8(isolate, "Indexed Property is read-only."));
+        Isolate* isolate = Isolate::current();
+
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8("Indexed Property is read-only."));
     }
 
     static void i_NamedSetter(v8::Local<v8::String> property,
                               v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value> &info)
     {
-        isolate->ThrowException(
-            v8::String::NewFromUtf8(isolate, "Named Property is read-only."));
+        Isolate* isolate = Isolate::current();
+
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8("Named Property is read-only."));
     }
 
     static void i_NamedDeleter(
         v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Boolean> &info)
     {
-        isolate->ThrowException(
-            v8::String::NewFromUtf8(isolate, "Named Property is read-only."));
+        Isolate* isolate = Isolate::current();
+
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8("Named Property is read-only."));
     }
 
     //------------------------------------------------------------------
@@ -330,17 +348,28 @@ public:
 
 private:
     static void s_dispose(const v8::FunctionCallbackInfo<v8::Value> &args);
+    static void s_equals(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_toString(const v8::FunctionCallbackInfo<v8::Value> &args);
     static void s_toJSON(const v8::FunctionCallbackInfo<v8::Value> &args);
     static void s_valueOf(const v8::FunctionCallbackInfo<v8::Value> &args);
 };
 
-}
-
-#include "AsyncCall.h"
-
-namespace fibjs
+class RootModule
 {
+public:
+    RootModule()
+    {
+        m_next = g_root;
+        g_root = this;
+    }
+
+public:
+    virtual ClassInfo &class_info() = 0;
+
+public:
+    RootModule* m_next;
+    static RootModule* g_root;
+};
 
 inline void *ClassInfo::getInstance(void *o)
 {
@@ -366,13 +395,17 @@ inline ClassInfo &object_base::class_info()
     static ClassData::ClassMethod s_method[] =
     {
         { "dispose", s_dispose },
+        { "equals", s_equals, false},
         { "toString", s_toString },
         { "toJSON", s_toJSON },
         { "valueOf", s_valueOf }
     };
 
     static ClassData s_cd =
-    { "object", NULL, 4, s_method, 0, NULL, 0, NULL, NULL, NULL, NULL };
+    {
+        "object", NULL, NULL, 5, s_method, 0,
+        NULL, 0, NULL, NULL, NULL, NULL
+    };
 
     static ClassInfo s_ci(s_cd);
     return s_ci;
@@ -386,6 +419,20 @@ inline void object_base::s_dispose(const v8::FunctionCallbackInfo<v8::Value> &ar
     hr = pInst->dispose();
 
     METHOD_VOID();
+}
+
+inline void object_base::s_equals(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    bool vr;
+
+    METHOD_INSTANCE(object_base);
+    METHOD_ENTER(1, 1);
+
+    ARG(obj_ptr<object_base>, 0);
+
+    hr = pInst->equals(v0, vr);
+
+    METHOD_RETURN();
 }
 
 inline void object_base::s_toString(const v8::FunctionCallbackInfo<v8::Value> &args)
@@ -402,19 +449,23 @@ inline void object_base::s_toString(const v8::FunctionCallbackInfo<v8::Value> &a
 
 inline void object_base::s_toJSON(const v8::FunctionCallbackInfo<v8::Value> &args)
 {
-    v8::Local<v8::Value> vr;
-
     obj_ptr<object_base> pInst = object_base::getInstance(args.This());
     if (pInst == NULL)
     {
+        v8::Isolate* isolate = args.GetIsolate();
+
+        V8_SCOPE(isolate);
+
         v8::Local<v8::Object> o = args.This();
         v8::Local<v8::Object> o1 = v8::Object::New(isolate);
 
         extend(o, o1);
 
-        args.GetReturnValue().Set(o1);
+        args.GetReturnValue().Set(V8_RETURN(o1));
         return;
     }
+
+    v8::Local<v8::Value> vr;
 
     scope l(pInst);
 
@@ -443,3 +494,6 @@ inline void object_base::s_valueOf(const v8::FunctionCallbackInfo<v8::Value> &ar
 
 #endif
 
+#ifdef _assert
+#undef _assert
+#endif

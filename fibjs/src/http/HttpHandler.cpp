@@ -21,7 +21,7 @@ namespace fibjs
 static const char *s_staticCounter[] =
 { "total", "pendding" };
 static const char *s_Counter[] =
-{ "request", "response", "error", "error_400", "error_404", "error_500" };
+{ "request", "response", "error", "error_400", "error_404", "error_500", "totalTime" };
 
 enum
 {
@@ -32,7 +32,8 @@ enum
     HTTP_ERROR,
     HTTP_ERROR_400,
     HTTP_ERROR_404,
-    HTTP_ERROR_500
+    HTTP_ERROR_500,
+    HTTP_TOTAL_TIME
 };
 
 result_t HttpHandler_base::_new(v8::Local<v8::Value> hdlr,
@@ -46,7 +47,7 @@ result_t HttpHandler_base::_new(v8::Local<v8::Value> hdlr,
 
     obj_ptr<HttpHandler> ht_hdlr = new HttpHandler();
     ht_hdlr->wrap(This);
-    ht_hdlr->setHandler(hdlr1);
+    ht_hdlr->set_handler(hdlr1);
 
     retVal = ht_hdlr;
 
@@ -58,25 +59,17 @@ HttpHandler::HttpHandler() :
         128), m_maxUploadSize(67108864)
 {
     m_stats = new Stats();
-    m_stats->init(s_staticCounter, 2, s_Counter, 6);
+    m_stats->init(s_staticCounter, 2, s_Counter, 7);
 }
-
-void HttpHandler::setHandler(Handler_base *hdlr)
-{
-    wrap()->SetHiddenValue(v8::String::NewFromUtf8(isolate, "handler"), hdlr->wrap());
-    m_hdlr = hdlr;
-}
-
-static std::string s_crossdomain;
 
 result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                             exlib::AsyncEvent *ac)
+                             AsyncEvent *ac)
 {
-    class asyncInvoke: public asyncState
+    class asyncInvoke: public AsyncState
     {
     public:
-        asyncInvoke(HttpHandler *pThis, Stream_base *stm, exlib::AsyncEvent *ac) :
-            asyncState(ac), m_pThis(pThis), m_stm(stm)
+        asyncInvoke(HttpHandler *pThis, Stream_base *stm, AsyncEvent *ac) :
+            AsyncState(ac), m_pThis(pThis), m_stm(stm)
         {
             m_stmBuffered = new BufferedStream(stm);
             m_stmBuffered->set_EOL("\r\n");
@@ -93,7 +86,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             set(read);
         }
 
-        static int read(asyncState *pState, int n)
+        static int32_t read(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
             bool bKeepAlive = false;
@@ -109,7 +102,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_req->readFrom(pThis->m_stmBuffered, pThis);
         }
 
-        static int invoke(asyncState *pState, int n)
+        static int32_t invoke(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -130,7 +123,8 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             pThis->m_req->get_keepAlive(bKeepAlive);
             pThis->m_rep->set_keepAlive(bKeepAlive);
 
-            pThis->set(send);
+            pThis->set(check_error);
+            pThis->m_d.now();
 
             if (pThis->m_pThis->m_crossDomain)
             {
@@ -138,13 +132,9 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
 
                 if (!qstrcmp(str.c_str(), "/crossdomain.xml"))
                 {
-                    if (s_crossdomain.empty())
-                        s_crossdomain.assign(
-                            "<cross-domain-policy><allow-access-from domain=\"*\" to-ports=\"*\" /></cross-domain-policy>",
-                            88);
-
                     obj_ptr<MemoryStream> body = new MemoryStream();
-                    obj_ptr<Buffer> buf = new Buffer(s_crossdomain);
+                    obj_ptr<Buffer> buf = new Buffer("<cross-domain-policy><allow-access-from domain=\"*\" to-ports=\"*\" /></cross-domain-policy>",
+                                                     88);
 
                     pThis->m_rep->set_body(body);
                     body->write(buf, NULL);
@@ -195,11 +185,41 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return mq_base::invoke(pThis->m_pThis->m_hdlr, pThis->m_req, pThis);
         }
 
-        static int send(asyncState *pState, int n)
+        static int32_t check_error(AsyncState *pState, int32_t n)
+        {
+            asyncInvoke *pThis = (asyncInvoke *) pState;
+            int32_t s;
+            int32_t err_idx = -1;
+
+            pThis->m_rep->get_status(s);
+            if (s == 400) {
+                err_idx = 0;
+                pThis->m_pThis->m_stats->inc(HTTP_ERROR_400);
+            }
+            else if (s == 404) {
+                err_idx = 1;
+                pThis->m_pThis->m_stats->inc(HTTP_ERROR_404);
+            }
+            else if (s == 500) {
+                err_idx = 2;
+                pThis->m_pThis->m_stats->inc(HTTP_ERROR_500);
+            }
+
+            pThis->set(send);
+            if (err_idx == -1 || !pThis->m_pThis->m_err_hdlrs[err_idx])
+                return 0;
+            return mq_base::invoke(pThis->m_pThis->m_err_hdlrs[err_idx], pThis->m_req, pThis);
+        }
+
+        static int32_t send(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
             int32_t s;
             bool t = false;
+            date_t d;
+
+            d.now();
+            pThis->m_pThis->m_stats->add(HTTP_TOTAL_TIME, (int32_t)d.diff(pThis->m_d));
 
             pThis->m_rep->get_status(s);
             if (s == 200)
@@ -212,18 +232,24 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
                     pThis->m_rep->addHeader("Expires", "-1");
                 }
             }
-            else if (s == 400)
-                pThis->m_pThis->m_stats->inc(HTTP_ERROR_400);
-            else if (s == 404)
-                pThis->m_pThis->m_stats->inc(HTTP_ERROR_404);
-            else if (s == 500)
-                pThis->m_pThis->m_stats->inc(HTTP_ERROR_500);
+
+            std::string str;
+
+            pThis->m_req->get_method(str);
+            bool headOnly = !qstricmp(str.c_str(), "head");
+
+            if (headOnly)
+            {
+                pThis->set(end);
+                pThis->m_rep->set_keepAlive(false);
+                return pThis->m_rep->sendHeader(pThis->m_stm, pThis);
+            }
 
             int64_t len;
 
             pThis->m_rep->get_length(len);
 
-            if (len > 128 && len < 1024 * 1024)
+            if (len > 128 && len < 1024 * 1024 * 5)
             {
                 Variant hdr;
 
@@ -231,7 +257,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
                                               hdr) != CALL_RETURN_NULL)
                 {
                     std::string str = hdr.string();
-                    int type = 0;
+                    int32_t type = 0;
 
                     if (qstristr(str.c_str(), "gzip"))
                         type = 1;
@@ -289,7 +315,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_rep->sendTo(pThis->m_stm, pThis);
         }
 
-        static int zip(asyncState *pState, int n)
+        static int32_t zip(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -299,7 +325,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_rep->sendTo(pThis->m_stm, pThis);
         }
 
-        static int end(asyncState *pState, int n)
+        static int32_t end(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -316,13 +342,17 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_body->close(pThis);
         }
 
-        virtual int error(int v)
+        virtual int32_t error(int32_t v)
         {
             m_pThis->m_stats->inc(HTTP_ERROR);
 
-            if (is(send))
+            if (is(check_error))
             {
-                asyncLog(console_base::_ERROR, "HttpHandler: " + getResultMessage(v));
+                std::string err = getResultMessage(v);
+
+                m_req->set_lastError(err.c_str());
+                asyncLog(console_base::_ERROR, "HttpHandler: " + err);
+
                 m_rep->set_status(500);
                 return 0;
             }
@@ -335,7 +365,14 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
 
                 m_rep->set_keepAlive(false);
                 m_rep->set_status(400);
-                set(send);
+                set(check_error);
+                m_d.now();
+                return 0;
+            }
+
+            if (is(send))
+            {
+                asyncLog(console_base::_ERROR, "HttpHandler: " + getResultMessage(v));
                 return 0;
             }
 
@@ -351,6 +388,7 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
         obj_ptr<HttpResponse_base> m_rep;
         obj_ptr<MemoryStream> m_zip;
         obj_ptr<SeekableStream_base> m_body;
+        date_t m_d;
     };
 
     if (!ac)
@@ -369,6 +407,33 @@ result_t HttpHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
         return CHECK_ERROR(CALL_E_BADVARTYPE);
 
     return (new asyncInvoke(this, stm, ac))->post(0);
+}
+
+result_t HttpHandler::onerror(v8::Local<v8::Object> hdlrs)
+{
+    static const char* s_err_keys[] = {"400", "404", "500"};
+    int32_t i;
+    v8::Local<v8::Object> o = wrap();
+
+    for (i = 0; i < 3; i ++)
+    {
+        v8::Local<v8::String> key = holder()->NewFromUtf8(s_err_keys[i]);
+        v8::Local<v8::Value> hdlr = hdlrs->Get(key);
+
+        if (!IsEmpty(hdlr))
+        {
+            obj_ptr<Handler_base> hdlr1;
+
+            result_t hr = JSHandler::New(hdlr, hdlr1);
+            if (hr < 0)
+                return hr;
+
+            o->SetHiddenValue(key, hdlr1->wrap());
+            m_err_hdlrs[i] = hdlr1;
+        }
+    }
+
+    return 0;
 }
 
 result_t HttpHandler::get_crossDomain(bool &retVal)
@@ -433,7 +498,14 @@ result_t HttpHandler::get_handler(obj_ptr<Handler_base> &retVal)
 
 result_t HttpHandler::set_handler(Handler_base *newVal)
 {
+    obj_ptr<Handler_base> hdlr = (Handler_base*)m_hdlr;
+
+    wrap()->SetHiddenValue(holder()->NewFromUtf8("handler"), newVal->wrap());
     m_hdlr = newVal;
+
+    if (hdlr)
+        hdlr->dispose();
+
     return 0;
 }
 

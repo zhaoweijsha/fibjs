@@ -26,6 +26,7 @@ struct ClassData
         const char *name;
         v8::AccessorGetterCallback getter;
         v8::AccessorSetterCallback setter;
+        bool is_static;
     };
 
     struct ClassMethod
@@ -57,11 +58,12 @@ struct ClassData
 
     const char *name;
     v8::FunctionCallback cor;
-    int mc;
+    v8::FunctionCallback caf;
+    int32_t mc;
     const ClassMethod *cms;
-    int oc;
+    int32_t oc;
     const ClassObject *cos;
-    int pc;
+    int32_t pc;
     const ClassProperty *cps;
     const ClassIndexed *cis;
     const ClassNamed *cns;
@@ -71,8 +73,22 @@ struct ClassData
 class ClassInfo
 {
 public:
+    class cache
+    {
+    public:
+        cache() : m_init_isolate(false)
+        {}
+
+    public:
+        v8::Persistent<v8::FunctionTemplate> m_class;
+        v8::Persistent<v8::Function> m_function;
+        v8::Persistent<v8::Object> m_cache;
+        bool m_init_isolate;
+    };
+
+public:
     ClassInfo(ClassData &cd) :
-        m_cd(cd), refs_(0), m_next(NULL), m_Inherit(NULL)
+        m_cd(cd), refs_(0), m_next(NULL), m_Inherit(NULL), m_id(-1)
     {
         if (m_cd.base)
         {
@@ -85,7 +101,6 @@ public:
     void *getInstance(void *o);
     void *getInstance(v8::Local<v8::Value> o)
     {
-        _init();
         if (o.IsEmpty() || !o->IsObject())
             return NULL;
 
@@ -97,21 +112,43 @@ public:
         return getInstance(obj->GetAlignedPointerFromInternalField(0));
     }
 
-    v8::Local<v8::ObjectTemplate> getTemplate()
+    v8::Local<v8::Function> getFunction(Isolate* isolate)
     {
-        _init();
-        return v8::Local<v8::FunctionTemplate>::New(isolate, m_class)->InstanceTemplate();
+        cache* _cache = _init(isolate);
+        return v8::Local<v8::Function>::New(isolate->m_isolate, _cache->m_function);
     }
 
-    v8::Local<v8::Object> CreateInstance()
+    v8::Local<v8::Object> CreateInstance(Isolate* isolate)
     {
-        _init();
-        return v8::Local<v8::Object>::New(isolate, m_cache)->Clone();
+        v8::Local<v8::Object> o;
+        cache* _cache = _init(isolate);
+
+        if (_cache->m_cache.IsEmpty())
+        {
+            o = v8::Local<v8::Function>::New(isolate->m_isolate, _cache->m_function)->NewInstance();
+            o->SetAlignedPointerInInternalField(0, 0);
+            _cache->m_cache.Reset(isolate->m_isolate, o);
+
+            o = o->Clone();
+        } else
+            o = v8::Local<v8::Object>::New(isolate->m_isolate, _cache->m_cache)->Clone();
+
+        return o;
+    }
+
+    bool init_isolate()
+    {
+        cache* _cache = _init(Isolate::current());
+        if (_cache->m_init_isolate)
+            return false;
+
+        _cache->m_init_isolate = true;
+        return true;
     }
 
     bool has(const char *name)
     {
-        int i;
+        int32_t i;
 
         for (i = 0; i < m_cd.mc; i++)
             if (!qstrcmp(name, m_cd.cms[i].name))
@@ -136,170 +173,190 @@ public:
         return m_cd.name;
     }
 
-    inline bool is_skip(const char *name, const char **skips)
+    void Attach(Isolate* isolate, v8::Local<v8::Object> o, const char** skips = NULL)
     {
-        if (!skips)
-            return false;
+        v8::Local<v8::Context> _context = v8::Local<v8::Context>::New(isolate->m_isolate, isolate->m_context);
 
-        while (*skips && qstrcmp(*skips, name))
-            skips++;
-
-        return !!*skips;
-    }
-
-    void Attach(v8::Local<v8::Object> o, const char **skips)
-    {
-        _init();
-        int i;
+        int32_t i, j;
 
         for (i = 0; i < m_cd.mc; i++)
-            if (!is_skip(m_cd.cms[i].name, skips))
-                o->ForceSet(v8::String::NewFromUtf8(isolate, m_cd.cms[i].name),
-                            v8::Function::New(isolate, m_cd.cms[i].invoker),
-                            v8::ReadOnly);
+        {
+            if (m_cd.cms[i].is_static)
+            {
+                if (skips)
+                    for (j = 0; skips[j] && qstrcmp(skips[j], m_cd.cms[i].name); j ++);
+
+                if (!skips || !skips[j])
+                    o->DefineOwnProperty(_context, isolate->NewFromUtf8(m_cd.cms[i].name),
+                                         createV8Function(m_cd.name, isolate->m_isolate, m_cd.cms[i].invoker),
+                                         (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete)).IsJust();
+            }
+        }
 
         for (i = 0; i < m_cd.oc; i++)
-            if (!is_skip(m_cd.cos[i].name, skips))
-            {
-                m_cd.cos[i].invoker()._init();
-                o->ForceSet(v8::String::NewFromUtf8(isolate, m_cd.cos[i].name),
-                            v8::Local<v8::Function>::New(isolate, m_cd.cos[i].invoker().m_function),
-                            v8::ReadOnly);
-            }
+        {
+            cache* _cache1 = m_cd.cos[i].invoker()._init(isolate);
+            if (skips)
+                for (j = 0; skips[j] && qstrcmp(skips[j], m_cd.cos[i].name); j ++);
+
+            if (!skips || !skips[j])
+                o->DefineOwnProperty(_context, isolate->NewFromUtf8(m_cd.cos[i].name),
+                                     v8::Local<v8::Function>::New(isolate->m_isolate, _cache1->m_function),
+                                     (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete)).IsJust();
+        }
 
         for (i = 0; i < m_cd.pc; i++)
-            if (!is_skip(m_cd.cps[i].name, skips))
-                o->SetAccessor(v8::String::NewFromUtf8(isolate, m_cd.cps[i].name),
-                               m_cd.cps[i].getter, m_cd.cps[i].setter);
+            if (m_cd.cps[i].is_static)
+            {
+                if (skips)
+                    for (j = 0; skips[j] && qstrcmp(skips[j], m_cd.cps[i].name); j ++);
+
+                if (!skips || !skips[j])
+                    o->SetAccessor(isolate->NewFromUtf8(m_cd.cps[i].name),
+                                   m_cd.cps[i].getter, m_cd.cps[i].setter);
+            }
     }
 
 public:
     void Ref()
     {
-        exlib::atom_inc(&refs_);
+        refs_.inc();
     }
 
     void Unref()
     {
-        exlib::atom_dec(&refs_);
+        refs_.dec();
     }
 
-    int32_t dump(v8::Local<v8::Object> &o)
+    intptr_t dump(v8::Local<v8::Object> &o)
     {
-        int32_t cnt = refs_;
+        Isolate* isolate = Isolate::current();
+        intptr_t cnt = refs_;
 
         if (cnt)
         {
-            o = v8::Object::New(isolate);
-            o->Set(v8::String::NewFromUtf8(isolate, "class"),
-                   v8::String::NewFromUtf8(isolate, m_cd.name));
-            o->Set(v8::String::NewFromUtf8(isolate, "objects"),
-                   v8::Integer::New(isolate, cnt));
+            o = v8::Object::New(isolate->m_isolate);
+            o->Set(isolate->NewFromUtf8("class"),
+                   isolate->NewFromUtf8(m_cd.name));
+            o->Set(isolate->NewFromUtf8("objects"),
+                   v8::Integer::New(isolate->m_isolate, (int32_t)cnt));
 
-            v8::Local<v8::Array> inherits = v8::Array::New(isolate);
+            v8::Local<v8::Array> inherits = v8::Array::New(isolate->m_isolate);
 
             ClassInfo *p = m_Inherit;
-            int32_t icnt = 0;
+            intptr_t icnt = 0;
 
             while (p)
             {
                 v8::Local<v8::Object> o1;
-                int32_t cnt1 = p->dump(o1);
+                intptr_t cnt1 = p->dump(o1);
                 if (cnt1)
-                    inherits->Set(icnt ++, o1);
+                    inherits->Set((int32_t)(icnt ++), o1);
                 p = p->m_next;
             }
 
             if (icnt)
-                o->Set(v8::String::NewFromUtf8(isolate, "inherits"), inherits);
+                o->Set(isolate->NewFromUtf8("inherits"), inherits);
         }
 
         return cnt;
     }
 
 private:
-    void _init()
+    cache* _init(Isolate* isolate)
     {
-        if (m_class.IsEmpty())
+        if (m_id < 0)
+            m_id = (int32_t)isolate->m_classInfo.size();
+
+        void* p = NULL;
+        while ((int32_t)isolate->m_classInfo.size() < m_id + 1)
+            isolate->m_classInfo.append(p);
+
+        cache* _cache = (cache*)isolate->m_classInfo[m_id];
+
+        if (_cache)
+            return _cache;
+
+        isolate->m_classInfo[m_id] = _cache = new cache();
+
+        v8::Local<v8::FunctionTemplate> _class = v8::FunctionTemplate::New(
+                    isolate->m_isolate, m_cd.cor);
+        _cache->m_class.Reset(isolate->m_isolate, _class);
+
+        _class->SetClassName(isolate->NewFromUtf8(m_cd.name));
+
+        if (m_cd.base)
         {
-            v8::Local<v8::FunctionTemplate> _class = v8::FunctionTemplate::New(
-                        isolate, m_cd.cor);
-            m_class.Reset(isolate, _class);
+            cache* _cache1 = m_cd.base->_init(isolate);
+            _class->Inherit(
+                v8::Local<v8::FunctionTemplate>::New(isolate->m_isolate,
+                        _cache1->m_class));
+        }
 
-            _class->SetClassName(v8::String::NewFromUtf8(isolate, m_cd.name));
+        v8::Local<v8::ObjectTemplate> pt = _class->PrototypeTemplate();
+        int32_t i;
 
-            if (m_cd.base)
-            {
-                m_cd.base->_init();
-                _class->Inherit(
-                    v8::Local<v8::FunctionTemplate>::New(isolate,
-                            m_cd.base->m_class));
-            }
+        for (i = 0; i < m_cd.mc; i++)
+            pt->Set(isolate->NewFromUtf8(m_cd.cms[i].name),
+                    v8::FunctionTemplate::New(isolate->m_isolate, m_cd.cms[i].invoker),
+                    (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
-            v8::Local<v8::ObjectTemplate> pt = _class->PrototypeTemplate();
-            int i;
+        for (i = 0; i < m_cd.oc; i++)
+        {
+            cache* _cache1 = m_cd.cos[i].invoker()._init(isolate);
+            pt->Set(isolate->NewFromUtf8(m_cd.cos[i].name),
+                    v8::Local<v8::FunctionTemplate>::New(isolate->m_isolate, _cache1->m_class),
+                    (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
+        }
 
-            pt->MarkAsUndetectable();
+        for (i = 0; i < m_cd.pc; i++)
+            pt->SetAccessor(isolate->NewFromUtf8(m_cd.cps[i].name),
+                            m_cd.cps[i].getter, m_cd.cps[i].setter,
+                            v8::Local<v8::Value>(), v8::DEFAULT, v8::DontDelete);
 
-            for (i = 0; i < m_cd.mc; i++)
-            {
-                pt->Set(v8::String::NewFromUtf8(isolate, m_cd.cms[i].name),
-                        v8::FunctionTemplate::New(isolate, m_cd.cms[i].invoker));
-                if (m_cd.cms[i].is_static)
-                    _class->Set(v8::String::NewFromUtf8(isolate, m_cd.cms[i].name),
-                                v8::Function::New(isolate, m_cd.cms[i].invoker),
-                                v8::ReadOnly);
-            }
+        v8::Local<v8::ObjectTemplate> ot = _class->InstanceTemplate();
+        ot->SetInternalFieldCount(1);
 
-            for (i = 0; i < m_cd.oc; i++)
-            {
-                m_cd.cos[i].invoker()._init();
-                pt->Set(v8::String::NewFromUtf8(isolate, m_cd.cos[i].name),
-                        v8::Local<v8::FunctionTemplate>::New(isolate,
-                                m_cd.cos[i].invoker().m_class));
-            }
+        ClassData *pcd;
 
-            for (i = 0; i < m_cd.pc; i++)
-                pt->SetAccessor(v8::String::NewFromUtf8(isolate, m_cd.cps[i].name),
-                                m_cd.cps[i].getter, m_cd.cps[i].setter);
+        pcd = &m_cd;
+        while (pcd && !pcd->cis)
+            pcd = pcd->base ? &pcd->base->m_cd : NULL;
 
-            v8::Local<v8::ObjectTemplate> ot = _class->InstanceTemplate();
-            ot->SetInternalFieldCount(1);
+        if (pcd)
+            ot->SetIndexedPropertyHandler(pcd->cis->getter, pcd->cis->setter);
 
-            ClassData *pcd;
+        pcd = &m_cd;
+        while (pcd && !pcd->cns)
+            pcd = pcd->base ? &pcd->base->m_cd : NULL;
 
-            pcd = &m_cd;
-            while (pcd && !pcd->cis)
-                pcd = pcd->base ? &pcd->base->m_cd : NULL;
+        if (pcd)
+            ot->SetNamedPropertyHandler(pcd->cns->getter, pcd->cns->setter,
+                                        NULL, pcd->cns->remover, pcd->cns->enumerator);
 
-            if (pcd)
-                ot->SetIndexedPropertyHandler(pcd->cis->getter, pcd->cis->setter);
+        if (m_cd.caf)
+            ot->SetCallAsFunctionHandler(m_cd.caf);
 
-            pcd = &m_cd;
-            while (pcd && !pcd->cns)
-                pcd = pcd->base ? &pcd->base->m_cd : NULL;
+        v8::Local<v8::Function> _function = _class->GetFunction();
+        Attach(isolate, _function);
+        _cache->m_function.Reset(isolate->m_isolate, _function);
 
-            if (pcd)
-                ot->SetNamedPropertyHandler(pcd->cns->getter, pcd->cns->setter,
-                                            NULL, pcd->cns->remover, pcd->cns->enumerator);
-
-            v8::Local<v8::Function> _function = _class->GetFunction();
-            m_function.Reset(isolate, _function);
-
+        if (m_cd.cor)
+        {
             v8::Local<v8::Object> o = _function->NewInstance();
             o->SetAlignedPointerInInternalField(0, 0);
-            m_cache.Reset(isolate, o);
+            _cache->m_cache.Reset(isolate->m_isolate, o);
         }
+
+        return _cache;
     }
 
 private:
-    v8::Persistent<v8::FunctionTemplate> m_class;
-    v8::Persistent<v8::Function> m_function;
-    v8::Persistent<v8::Object> m_cache;
     ClassData &m_cd;
-    int32_t refs_;
+    exlib::atomic refs_;
     ClassInfo *m_next;
     ClassInfo *m_Inherit;
+    int32_t m_id;
 };
 
 }

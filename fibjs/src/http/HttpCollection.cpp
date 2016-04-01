@@ -7,6 +7,7 @@
 
 #include "HttpCollection.h"
 #include "List.h"
+#include "Map.h"
 #include <string.h>
 
 namespace fibjs
@@ -106,25 +107,6 @@ result_t HttpCollection::all(const char *name, obj_ptr<List_base> &retVal)
     return 0;
 }
 
-inline result_t _map(HttpCollection *o, v8::Local<v8::Object> m,
-                     result_t (HttpCollection::*fn)(const char *name, Variant value))
-{
-    v8::Local<v8::Array> ks = m->GetPropertyNames();
-    int len = ks->Length();
-    int i;
-    result_t hr;
-
-    for (i = 0; i < len; i++)
-    {
-        v8::Local<v8::Value> k = ks->Get(i);
-        hr = (o->*fn)(*v8::String::Utf8Value(k), m->Get(k));
-        if (hr < 0)
-            return hr;
-    }
-
-    return 0;
-}
-
 result_t HttpCollection::add(const char *name, Variant value)
 {
     std::string s;
@@ -139,9 +121,9 @@ result_t HttpCollection::add(const char *name, Variant value)
     return 0;
 }
 
-result_t HttpCollection::add(v8::Local<v8::Object> map)
+result_t HttpCollection::add(Map_base* map)
 {
-    return _map(this, map, &HttpCollection::add);
+    return ((Map*)map)->map(this, &HttpCollection::add);
 }
 
 result_t HttpCollection::set(const char *name, Variant value)
@@ -186,9 +168,9 @@ result_t HttpCollection::set(const char *name, Variant value)
     return 0;
 }
 
-result_t HttpCollection::set(v8::Local<v8::Object> map)
+result_t HttpCollection::set(Map_base* map)
 {
-    return _map(this, map, &HttpCollection::set);
+    return ((Map*)map)->map(this, &HttpCollection::set);
 }
 
 result_t HttpCollection::remove(const char *name)
@@ -221,12 +203,11 @@ result_t HttpCollection::_named_getter(const char *property, Variant &retVal)
 result_t HttpCollection::_named_enumerator(v8::Local<v8::Array> &retVal)
 {
     int32_t i;
+    Isolate* isolate = holder();
 
-    retVal = v8::Array::New(isolate);
+    retVal = v8::Array::New(isolate->m_isolate);
     for (i = 0; i < m_count; i++)
-        retVal->Set(i,
-                    v8::String::NewFromUtf8(isolate, m_names[i].c_str(),
-                                            v8::String::kNormalString, (int) m_names[i].length()));
+        retVal->Set(i, isolate->NewFromUtf8(m_names[i]));
 
     return 0;
 }

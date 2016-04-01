@@ -54,11 +54,14 @@ interface Message : object
     /*! @brief 从给定的缓存流对象中读取格式化消息，并解析填充对象
      @param stm 指定读取格式化消息的流对象
      */
-    readFrom(BufferedStream stm) async;
+    readFrom(Stream stm) async;
 
     /*! @brief 查询消息 readFrom 时的流对象 */
     readonly Stream stream;
 
     /*! @brief 获取响应消息对象*/
     readonly Message response;
+
+    /*! @brief 查询和设置消息处理的最后错误 */
+    String lastError;
 };

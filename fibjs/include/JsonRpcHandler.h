@@ -21,19 +21,21 @@ public:
     // object_base
     virtual result_t dispose()
     {
+        m_handler.dispose();
+
         return 0;
     }
 
 public:
     JsonRpcHandler(Handler_base *hdlr)
     {
-        wrap()->SetHiddenValue(v8::String::NewFromUtf8(isolate, "handler"), hdlr->wrap());
+        wrap()->SetHiddenValue(holder()->NewFromUtf8("handler"), hdlr->wrap());
         m_handler = hdlr;
     }
 
 public:
     // Handler_base
-    virtual result_t invoke(object_base *v, obj_ptr<Handler_base> &retVal, exlib::AsyncEvent *ac);
+    virtual result_t invoke(object_base *v, obj_ptr<Handler_base> &retVal, AsyncEvent *ac);
 
 private:
     naked_ptr<Handler_base> m_handler;

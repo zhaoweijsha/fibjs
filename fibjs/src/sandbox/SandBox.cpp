@@ -8,9 +8,12 @@
 #include "SandBox.h"
 #include "ifs/vm.h"
 #include "ifs/util.h"
+#include "ifs/test.h"
 
 namespace fibjs
 {
+
+DECLARE_MODULE(vm);
 
 result_t SandBox_base::_new(v8::Local<v8::Object> mods, const char *name,
                             obj_ptr<SandBox_base> &retVal, v8::Local<v8::Object> This)
@@ -48,8 +51,26 @@ result_t SandBox_base::_new(v8::Local<v8::Object> mods,
 
 void SandBox::InstallModule(std::string fname, v8::Local<v8::Value> o)
 {
-    mods()->Set(v8::String::NewFromUtf8(isolate, fname.c_str(), v8::String::kNormalString,
-                                        (int)fname.length()), o);
+    mods()->Set(holder()->NewFromUtf8(fname), o);
+}
+
+RootModule* RootModule::g_root = NULL;
+
+void SandBox::initRoot()
+{
+    Isolate* isolate = holder();
+
+    RootModule* pModule = RootModule::g_root;
+
+    while (pModule)
+    {
+        ClassInfo& ci = pModule->class_info();
+        InstallModule(ci.name(), ci.getFunction(isolate));
+
+        pModule = pModule->m_next;
+    }
+
+    InstallModule("expect", createV8Function("expect", isolate->m_isolate, test_base::s_expect));
 }
 
 result_t SandBox::add(const char *id, v8::Local<v8::Value> mod)
@@ -63,8 +84,8 @@ result_t SandBox::add(const char *id, v8::Local<v8::Value> mod)
 result_t SandBox::add(v8::Local<v8::Object> mods)
 {
     v8::Local<v8::Array> ks = mods->GetPropertyNames();
-    int len = ks->Length();
-    int i;
+    int32_t len = ks->Length();
+    int32_t i;
 
     for (i = 0; i < len; i++)
     {
@@ -77,7 +98,7 @@ result_t SandBox::add(v8::Local<v8::Object> mods)
 
 result_t SandBox::remove(const char *id)
 {
-    mods()->Delete(v8::String::NewFromUtf8(isolate, id));
+    mods()->Delete(holder()->NewFromUtf8(id));
     return 0;
 }
 
@@ -85,7 +106,7 @@ result_t SandBox::clone(obj_ptr<SandBox_base> &retVal)
 {
     obj_ptr<SandBox> sbox = new SandBox();
     sbox->m_name = m_name;
-    sbox->wrap()->SetHiddenValue(v8::String::NewFromUtf8(isolate, "_mods"),
+    sbox->wrap()->SetHiddenValue(holder()->NewFromUtf8("_mods"),
                                  mods()->Clone());
 
     retVal = sbox;

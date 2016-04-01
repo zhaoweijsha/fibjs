@@ -30,12 +30,12 @@ result_t Routing_base::_new(v8::Local<v8::Object> map,
 
 #define RE_SIZE 64
 result_t Routing::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                         exlib::AsyncEvent *ac)
+                         AsyncEvent *ac)
 {
-    int i, j;
-    int rc = 0;
+    int32_t i, j;
+    int32_t rc = 0;
     obj_ptr<Message_base> msg = Message_base::getInstance(v);
-    int ovector[RE_SIZE];
+    int32_t ovector[RE_SIZE];
 
     if (msg == NULL)
         return CHECK_ERROR(CALL_E_BADVARTYPE);
@@ -44,12 +44,12 @@ result_t Routing::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
 
     msg->get_value(value);
 
-    for (i = (int) m_array.size() - 1; i >= 0; i--)
+    for (i = (int32_t) m_array.size() - 1; i >= 0; i--)
     {
         obj_ptr<rule> &r = m_array[i];
 
         if ((rc = pcre_exec(r->m_re, r->m_extra, value.c_str(),
-                            (int) value.length(), 0, 0, ovector, RE_SIZE)) > 0)
+                            (int32_t) value.length(), 0, 0, ovector, RE_SIZE)) > 0)
         {
             obj_ptr<List> list = new List();
 
@@ -57,11 +57,11 @@ result_t Routing::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
                 msg->set_value("");
             else
             {
-                int levelCount[RE_SIZE] =
+                int32_t levelCount[RE_SIZE] =
                 { 0 };
-                int level[RE_SIZE] =
+                int32_t level[RE_SIZE] =
                 { 0 };
-                int p = 1;
+                int32_t p = 1;
 
                 levelCount[0] = 1;
 
@@ -105,15 +105,15 @@ result_t Routing::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
         }
     }
 
-    return CHECK_ERROR(Runtime::setError("unknown routing."));
+    return CHECK_ERROR(Runtime::setError("Routing: unknown routing: " + value));
 }
 
 result_t Routing::append(const char *pattern, Handler_base *hdlr)
 {
-    int opt = PCRE_JAVASCRIPT_COMPAT | PCRE_EXTRA | PCRE_NEWLINE_ANYCRLF
-              | PCRE_UCP | PCRE_CASELESS;
+    int32_t opt = PCRE_JAVASCRIPT_COMPAT | PCRE_EXTRA | PCRE_NEWLINE_ANYCRLF
+                  | PCRE_UCP | PCRE_CASELESS;
     const char *error;
-    int erroffset;
+    int32_t erroffset;
     pcre *re;
     pcre_extra *extra;
 
@@ -122,7 +122,7 @@ result_t Routing::append(const char *pattern, Handler_base *hdlr)
     {
         char buf[1024];
 
-        sprintf(buf, "Compilation failed at offset %d: %s.", erroffset, error);
+        sprintf(buf, "Routing: Compilation failed at offset %d: %s.", erroffset, error);
         return CHECK_ERROR(Runtime::setError(buf));
     }
 
@@ -133,22 +133,17 @@ result_t Routing::append(const char *pattern, Handler_base *hdlr)
         return CHECK_ERROR(Runtime::setError(error));
     }
 
-    v8::Local<v8::String> k = v8::String::NewFromUtf8(isolate, "handler");
-    v8::Local<v8::Value> v = wrap()->GetHiddenValue(k);
-    v8::Local<v8::Array> a;
+    Isolate* isolate = holder();
+    int32_t no = (int32_t)m_array.size();
 
-    if (IsEmpty(v))
-    {
-        a = v8::Array::New(isolate);
-        wrap()->SetHiddenValue(k, a);
-    }
-    else
-        a = v8::Local<v8::Array>::Cast(v);
+    char strBuf[32];
+    sprintf(strBuf, "handler_%d", no);
+    v8::Local<v8::String> k = isolate->NewFromUtf8(strBuf);
 
-    a->Set((int32_t)m_array.size(), hdlr->wrap());
+    wrap()->SetHiddenValue(k, hdlr->wrap());
 
     obj_ptr<rule> r = new rule(re, extra, hdlr);
-    m_array.append(r);
+    m_array.push_back(r);
 
     return 0;
 }
@@ -165,8 +160,8 @@ result_t Routing::append(const char *pattern, v8::Local<v8::Value> hdlr)
 result_t Routing::append(v8::Local<v8::Object> map)
 {
     v8::Local<v8::Array> ks = map->GetPropertyNames();
-    int len = ks->Length();
-    int i;
+    int32_t len = ks->Length();
+    int32_t i;
     result_t hr;
 
     for (i = len - 1; i >= 0; i--)

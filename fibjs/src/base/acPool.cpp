@@ -7,89 +7,107 @@
 namespace fibjs
 {
 
-BlockedAsyncQueue s_acPool;
+#define WORKER_STACK_SIZE   128
+#define MAX_IDLE_WORKERS    2
 
-static int32_t s_threads;
-static volatile int32_t s_idleThreads;
-static int32_t s_idleCount;
-
-static class _acThread: public exlib::OSThread
+class acPool
 {
 public:
-    _acThread()
+    acPool(bool bThread = false) : m_bThread(bThread)
     {
-        int32_t cpus = 0;
-
-        os_base::CPUs(cpus);
-        if (cpus < 3)
-            cpus = 3;
-
-        s_threads = cpus;
-
-        for (int i = 0; i < s_threads; i++)
-        {
-            start();
-            detach();
-        }
+        m_idleWorkers.inc();
+        new_worker();
     }
 
-    virtual void Run()
+public:
+    void put(AsyncEvent* ac)
     {
-        asyncEvent *p;
+        m_pool.put(ac);
+    }
 
-        Runtime rt;
-        DateCache dc;
-        rt.m_pDateCache = &dc;
-
-        Runtime::reg(&rt);
-
-        while (1)
+private:
+    void new_worker()
+    {
+        class _thread : public exlib::OSThread
         {
-            if (exlib::atom_inc(&s_idleThreads) > s_threads * 3)
+        public:
+            typedef void* (*thread_func)(void *);
+
+        public:
+            _thread(thread_func proc, void* arg) : m_proc(proc), m_arg(arg)
+            {}
+
+        public:
+            virtual void Run()
             {
-                exlib::atom_dec(&s_idleThreads);
-                break;
+                m_proc(m_arg);
             }
 
-            p = (asyncEvent *)s_acPool.wait();
-            exlib::atom_dec(&s_idleThreads);
+        private:
+            thread_func m_proc;
+            void* m_arg;
+        };
+
+        if (m_bThread)
+            (new _thread(worker_proc, this))->start();
+        else
+            exlib::Service::Create(worker_proc, this, WORKER_STACK_SIZE * 1024, "WorkerFiber");
+    }
+
+    void worker_proc()
+    {
+        Runtime rt(NULL);
+        AsyncEvent *p;
+
+        m_idleWorkers.dec();
+
+        while (true)
+        {
+            if (m_idleWorkers.inc() > MAX_IDLE_WORKERS)
+                break;
+
+            p = m_pool.get();
+            if (m_idleWorkers.dec() == 0)
+            {
+                if (m_idleWorkers.inc() > MAX_IDLE_WORKERS)
+                    m_idleWorkers.dec();
+                else
+                    new_worker();
+            }
 
             p->invoke();
         }
-    }
-} s_ac;
 
-static class _acThreadDog: public exlib::OSThread
+        m_idleWorkers.dec();
+    }
+
+    static void *worker_proc(void *ptr)
+    {
+        ((acPool*)ptr)->worker_proc();
+        return 0;
+    }
+
+private:
+    bool m_bThread;
+    exlib::Queue<AsyncEvent> m_pool;
+    exlib::atomic m_idleWorkers;
+};
+
+static acPool* s_acPool;
+static acPool* s_lsPool;
+
+void AsyncEvent::async(bool bLongSync)
 {
-public:
-    _acThreadDog()
-    {
-        start();
-    }
+    if (bLongSync)
+        s_lsPool->put(this);
+    else
+        s_acPool->put(this);
+}
 
-    virtual void Run()
-    {
-        while (1)
-        {
-            if (s_idleThreads < s_threads)
-            {
-                if (++s_idleCount > 5)
-                {
-                    s_idleCount = 0;
-
-                    for (int i = s_idleThreads; i < s_threads; i++)
-                    {
-                        s_ac.start();
-                        s_ac.detach();
-                    }
-                }
-            }
-            else
-                s_idleCount = 0;
-
-            Sleep(100);
-        }
-    }
-} s_dog;
+void init_acThread()
+{
+    s_acPool = new acPool();
+    s_lsPool = new acPool(true);
+}
 
 }

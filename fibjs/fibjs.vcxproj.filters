@@ -61,6 +61,9 @@
     <Filter Include="Source Files\other">
       <UniqueIdentifier>{04833fa6-0b7e-4d5d-b181-a16bff5ed551}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\process">
+      <UniqueIdentifier>{04833fa6-0b7e-4d5d-b181-a16bff876551}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\sandbox">
       <UniqueIdentifier>{85fa45f7-0a7e-4bd5-925e-4b3d4a29c5d3}</UniqueIdentifier>
     </Filter>
@@ -85,6 +88,15 @@
     <Filter Include="Source Files\xml">
       <UniqueIdentifier>{bb0b6946-169f-4796-b08c-abcf056dcc11}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\profiler">
+      <UniqueIdentifier>{85b70cf4-a7fa-4ff4-bfd0-c67c1a59802f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\websocket">
+      <UniqueIdentifier>{232f65a2-2152-4311-bdc2-fd62de813074}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\zip">
+      <UniqueIdentifier>{232f65a2-2952-4311-bdc2-fd62de813074}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ifs\console.h">
@@ -100,9 +112,6 @@
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\Fiber.h">
-      <Filter>Header Files\ifs</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ifs\Function.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\global.h">
@@ -148,6 +157,9 @@
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\Semaphore.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\RpcTask.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\Trigger.h">
@@ -234,6 +246,9 @@
     <ClInclude Include="include\ifs\Handler.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
+    <ClInclude Include="include\ifs\HandlerEx.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
     <ClInclude Include="include\ifs\mq.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
@@ -271,6 +286,15 @@
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\vm.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\websocket.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\WebSocketHandler.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\WebSocketMessage.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\MongoCollection.h">
@@ -321,12 +345,6 @@
     <ClInclude Include="include\ifs\TcpServer.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
-    <ClInclude Include="include\ifs\PacketHandler.h">
-      <Filter>Header Files\ifs</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ifs\PacketMessage.h">
-      <Filter>Header Files\ifs</Filter>
-    </ClInclude>
     <ClInclude Include="include\ifs\ssl.h">
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
@@ -364,6 +382,9 @@
       <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\AsyncCall.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AsyncIO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\AsyncWaitHandler.h">
@@ -510,12 +531,6 @@
     <ClInclude Include="include\object.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\PacketHandler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\PacketMessage.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\parse.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -558,6 +573,9 @@
     <ClInclude Include="include\SQLite.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\RpcTask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\ssl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -589,6 +607,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\Trigger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Timer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\Url.h">
@@ -665,6 +686,9 @@
     </ClInclude>
     <ClInclude Include="include\Int64.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\Timer.h">
+      <Filter>Header Files\ifs</Filter>
     </ClInclude>
     <ClInclude Include="include\ifs\XmlText.h">
       <Filter>Header Files\ifs</Filter>
@@ -744,6 +768,75 @@
     <ClInclude Include="include\XmlNamedNodeMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\ifs\HeapGraphEdge.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\HeapGraphNode.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\HeapSnapshot.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\profiler.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HeapGraphEdge.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HeapGraphNode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HeapSnapshot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HttpsServer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Isolate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HeapProxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\WebSocketHandler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\WebSocketMessage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ZipFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\iconv.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\json.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\base32.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\base64.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\base64vlq.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\bson.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\hex.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\ZipInfo.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\ZipFile.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ifs\zip.h">
+      <Filter>Header Files\ifs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\object_async.inl">
@@ -761,6 +854,15 @@
       <Filter>Source Files\base</Filter>
     </ClCompile>
     <ClCompile Include="src\base\fuck_sym.cpp">
+      <Filter>Source Files\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\base\mem_trace.cpp">
+      <Filter>Source Files\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\base\options.cpp">
+      <Filter>Source Files\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\base\profile.cpp">
       <Filter>Source Files\base</Filter>
     </ClCompile>
     <ClCompile Include="src\base\Runtime.cpp">
@@ -794,6 +896,9 @@
       <Filter>Source Files\console</Filter>
     </ClCompile>
     <ClCompile Include="src\console\console_std.cpp">
+      <Filter>Source Files\console</Filter>
+    </ClCompile>
+    <ClCompile Include="src\console\console_stream.cpp">
       <Filter>Source Files\console</Filter>
     </ClCompile>
     <ClCompile Include="src\console\console_sys.cpp">
@@ -907,6 +1012,9 @@
     <ClCompile Include="src\encoding\encoding_iconv.cpp">
       <Filter>Source Files\encoding</Filter>
     </ClCompile>
+    <ClCompile Include="src\encoding\encoding_json.cpp">
+      <Filter>Source Files\encoding</Filter>
+    </ClCompile>
     <ClCompile Include="src\fs\File.cpp">
       <Filter>Source Files\fs</Filter>
     </ClCompile>
@@ -922,13 +1030,13 @@
     <ClCompile Include="src\global\Buffer.cpp">
       <Filter>Source Files\global</Filter>
     </ClCompile>
-    <ClCompile Include="src\global\Function.cpp">
-      <Filter>Source Files\global</Filter>
-    </ClCompile>
     <ClCompile Include="src\global\global.cpp">
       <Filter>Source Files\global</Filter>
     </ClCompile>
     <ClCompile Include="src\global\Int64.cpp">
+      <Filter>Source Files\global</Filter>
+    </ClCompile>
+    <ClCompile Include="src\global\Timer.cpp">
       <Filter>Source Files\global</Filter>
     </ClCompile>
     <ClCompile Include="src\http\http.cpp">
@@ -967,6 +1075,12 @@
     <ClCompile Include="src\http\HttpUploadData.cpp">
       <Filter>Source Files\http</Filter>
     </ClCompile>
+    <ClCompile Include="src\io\AsyncIO_ev.cpp">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="src\io\AsyncIO_iocp.cpp">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
     <ClCompile Include="src\io\BufferedStream.cpp">
       <Filter>Source Files\io</Filter>
     </ClCompile>
@@ -1000,12 +1114,6 @@
     <ClCompile Include="src\mq\NullHandler.cpp">
       <Filter>Source Files\mq</Filter>
     </ClCompile>
-    <ClCompile Include="src\mq\PacketHandler.cpp">
-      <Filter>Source Files\mq</Filter>
-    </ClCompile>
-    <ClCompile Include="src\mq\PacketMessage.cpp">
-      <Filter>Source Files\mq</Filter>
-    </ClCompile>
     <ClCompile Include="src\mq\Routing.cpp">
       <Filter>Source Files\mq</Filter>
     </ClCompile>
@@ -1022,12 +1130,6 @@
       <Filter>Source Files\net</Filter>
     </ClCompile>
     <ClCompile Include="src\net\Socket_api.cpp">
-      <Filter>Source Files\net</Filter>
-    </ClCompile>
-    <ClCompile Include="src\net\Socket_ev.cpp">
-      <Filter>Source Files\net</Filter>
-    </ClCompile>
-    <ClCompile Include="src\net\Socket_iocp.cpp">
       <Filter>Source Files\net</Filter>
     </ClCompile>
     <ClCompile Include="src\net\TcpServer.cpp">
@@ -1072,9 +1174,6 @@
     <ClCompile Include="src\sandbox\SandBox_repl.cpp">
       <Filter>Source Files\sandbox</Filter>
     </ClCompile>
-    <ClCompile Include="src\sandbox\SandBox_root.cpp">
-      <Filter>Source Files\sandbox</Filter>
-    </ClCompile>
     <ClCompile Include="src\sandbox\SandBox_run.cpp">
       <Filter>Source Files\sandbox</Filter>
     </ClCompile>
@@ -1084,16 +1183,13 @@
     <ClCompile Include="src\other\JsonRpcHandler.cpp">
       <Filter>Source Files\other</Filter>
     </ClCompile>
-    <ClCompile Include="src\other\process.cpp">
-      <Filter>Source Files\other</Filter>
+    <ClCompile Include="src\other\RpcTask.cpp">
+      <Filter>Source Files\coroutine</Filter>
     </ClCompile>
     <ClCompile Include="src\other\Regex.cpp">
       <Filter>Source Files\other</Filter>
     </ClCompile>
     <ClCompile Include="src\other\uuidVar.cpp">
-      <Filter>Source Files\other</Filter>
-    </ClCompile>
-    <ClCompile Include="src\other\zlib.cpp">
       <Filter>Source Files\other</Filter>
     </ClCompile>
     <ClCompile Include="src\os\os.cpp">
@@ -1113,6 +1209,18 @@
     </ClCompile>
     <ClCompile Include="src\os\os_win.cpp">
       <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="src\process\process.cpp">
+      <Filter>Source Files\process</Filter>
+    </ClCompile>
+    <ClCompile Include="src\process\SubProcess.cpp">
+      <Filter>Source Files\process</Filter>
+    </ClCompile>
+    <ClCompile Include="src\process\SubProcess_posix.cpp">
+      <Filter>Source Files\process</Filter>
+    </ClCompile>
+    <ClCompile Include="src\process\SubProcess_win.cpp">
+      <Filter>Source Files\process</Filter>
     </ClCompile>
     <ClCompile Include="src\crypto\root_ca.cpp">
       <Filter>Source Files\crypto</Filter>
@@ -1155,6 +1263,36 @@
     </ClCompile>
     <ClCompile Include="src\xml\XmlParser_html.cpp">
       <Filter>Source Files\xml</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profiler\HeapDiff.cpp">
+      <Filter>Source Files\profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profiler\HeapGraphEdge.cpp">
+      <Filter>Source Files\profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profiler\HeapGraphNode.cpp">
+      <Filter>Source Files\profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profiler\HeapProxy.cpp">
+      <Filter>Source Files\profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profiler\HeapSnapshot.cpp">
+      <Filter>Source Files\profiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\websocket\WebSocketHandler.cpp">
+      <Filter>Source Files\websocket</Filter>
+    </ClCompile>
+    <ClCompile Include="src\websocket\WebSocketMessage.cpp">
+      <Filter>Source Files\websocket</Filter>
+    </ClCompile>
+    <ClCompile Include="src\websocket\websocket.cpp">
+      <Filter>Source Files\websocket</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zip\zlib.cpp">
+      <Filter>Source Files\zip</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zip\ZipFile.cpp">
+      <Filter>Source Files\zip</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -612,7 +612,7 @@ describe('util', function() {
 		});
 
 		it("Buffer", function() {
-			assert.equal(util.format(new Buffer("aaaaaaaa")), 'YWFhYWFhYWE=');
+			assert.equal(util.format(new Buffer('fibjs')), '<Buffer 66 69 62 6a 73>');
 		});
 
 		it("Int64", function() {
@@ -884,13 +884,13 @@ describe('util', function() {
 		});
 
 		it("timeout", function() {
-			c = new util.LruCache(3, 100);
+			c = new util.LruCache(3, 200);
 
 			c.put('f', 100);
 			c.put('d', 300);
 			c.put('e', 400);
 
-			coroutine.sleep(50);
+			coroutine.sleep(100);
 			c.put('f', 500);
 			deepEqual(c.toJSON(), {
 				"f": 500,
@@ -898,7 +898,7 @@ describe('util', function() {
 				"d": 300
 			});
 
-			coroutine.sleep(20);
+			coroutine.sleep(40);
 			deepEqual(c.toJSON(), {
 				"f": 500,
 				"e": 400,
@@ -908,14 +908,14 @@ describe('util', function() {
 			c.put('e', 700);
 
 			assert.equal(c.get('d'), 300);
-			coroutine.sleep(51);
+			coroutine.sleep(101);
 			deepEqual(c.toJSON(), {
 				"e": 700,
 				"f": 500
 			});
 
 			assert.equal(c.get('f'), 500);
-			coroutine.sleep(30);
+			coroutine.sleep(60);
 			deepEqual(c.toJSON(), {
 				"e": 700
 			});
@@ -934,9 +934,9 @@ describe('util', function() {
 			assert.equal(c.get("a", updater), "a_value");
 			assert.equal(call_num, 1);
 
-			(function() {
+			coroutine.start(function() {
 				c.get("b", updater);
-			}).start();
+			});
 			coroutine.sleep(1);
 			assert.equal(c.get("b"), "b_value");
 			assert.equal(call_num, 2);
@@ -945,9 +945,9 @@ describe('util', function() {
 				c.get("c", updater);
 			}
 
-			test_c.start();
-			test_c.start();
-			test_c.start();
+			coroutine.start(test_c);
+			coroutine.start(test_c);
+			coroutine.start(test_c);
 			coroutine.sleep(1);
 			assert.equal(c.get("c"), "c_value");
 			assert.equal(call_num, 3);
@@ -985,4 +985,4 @@ describe('util', function() {
 	});
 });
 
-//test.run(console.DEBUG);
+// test.run(console.DEBUG);

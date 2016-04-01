@@ -6,8 +6,8 @@
  */
 
 #include "ifs/Routing.h"
-#include "QuickArray.h"
 #include <pcre/pcre.h>
+#include <vector>
 
 #ifndef ROUTING_H_
 #define ROUTING_H_
@@ -42,13 +42,18 @@ public:
     // object_base
     virtual result_t dispose()
     {
+        int32_t i, sz = (int32_t)m_array.size();
+
+        for (i = 0; i < sz; i ++)
+            m_array[i]->m_hdlr.dispose();
+
         return 0;
     }
 
 public:
     // Handler_base
     virtual result_t invoke(object_base *v,
-                            obj_ptr<Handler_base> &retVal, exlib::AsyncEvent *ac);
+                            obj_ptr<Handler_base> &retVal, AsyncEvent *ac);
 
 public:
     // Routing_base
@@ -59,7 +64,7 @@ public:
     result_t append(const char *pattern, Handler_base *hdlr);
 
 private:
-    QuickArray<obj_ptr<rule> > m_array;
+    std::vector<obj_ptr<rule> > m_array;
 };
 
 } /* namespace fibjs */

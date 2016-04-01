@@ -8,105 +8,78 @@
 #include "Fiber.h"
 #include "ifs/os.h"
 
-extern int stack_size;
-
 namespace fibjs
 {
 
+extern int32_t stack_size;
+
 #define MAX_FIBER   10000
-extern v8::Persistent<v8::Context> s_context;
+#define MAX_IDLE   256
 
-static exlib::Queue<asyncEvent> g_jobs;
-static exlib::IDLE_PROC s_oldIdle;
-static int32_t s_fibers;
+int32_t g_spareFibers;
+static int32_t g_tlsCurrent;
 
-static int g_tlsCurrent;
-DateCache FiberBase::g_dc;
-
-static class null_fiber_data: public Fiber_base
+void init_fiber()
 {
-public:
-    null_fiber_data()
-    {
-        Ref();
-    }
-
-    result_t join()
-    {
-        return 0;
-    }
-
-    result_t get_caller(obj_ptr<Fiber_base> &retVal)
-    {
-        return CHECK_ERROR(CALL_E_INVALID_CALL);
-    }
-
-} *s_null;
-
-static void onIdle()
-{
-    if (!g_jobs.empty() && (s_fibers < MAX_FIBER))
-    {
-        s_fibers++;
-        exlib::Fiber::Create(FiberBase::fiber_proc, NULL,
-                             stack_size * 1024)->Unref();
-    }
-
-    if (s_oldIdle)
-        s_oldIdle();
-}
-
-inline void fiber_init()
-{
-    static bool bInit = false;
-
-    if (!bInit)
-    {
-        bInit = true;
-
-        s_null = new null_fiber_data();
-
-        s_fibers = 0;
-
-        g_tlsCurrent = exlib::Fiber::tlsAlloc();
-        s_oldIdle = exlib::Service::root->onIdle(onIdle);
-    }
+    g_spareFibers = MAX_IDLE;
+    g_tlsCurrent = exlib::Fiber::tlsAlloc();
 }
 
 void *FiberBase::fiber_proc(void *p)
 {
-    v8::Locker locker(isolate);
-    v8::Isolate::Scope isolate_scope(isolate);
+    Isolate* isolate = (Isolate*)p;
 
-    v8::HandleScope handle_scope(isolate);
+    Runtime rt(isolate);
+    v8::Locker locker(isolate->m_isolate);
+    v8::Isolate::Scope isolate_scope(isolate->m_isolate);
+
+    v8::HandleScope handle_scope(isolate->m_isolate);
     v8::Context::Scope context_scope(
-        v8::Local<v8::Context>::New(isolate, s_context));
+        v8::Local<v8::Context>::New(isolate->m_isolate, isolate->m_context));
 
+    isolate->m_idleFibers --;
     while (1)
     {
-        asyncEvent *ae;
+        AsyncEvent *ae;
 
-        if ((ae = g_jobs.tryget()) == NULL)
+        if ((ae = (AsyncEvent*)isolate->m_jobs.tryget()) == NULL)
         {
-            v8::Unlocker unlocker(isolate);
-            ae = g_jobs.get();
+            isolate->m_idleFibers ++;
+            if (isolate->m_idleFibers > g_spareFibers) {
+                isolate->m_idleFibers --;
+                break;
+            }
+
+            {
+                v8::Unlocker unlocker(isolate->m_isolate);
+                ae = (AsyncEvent*)isolate->m_jobs.get();
+            }
+
+            isolate->m_idleFibers --;
         }
 
-        if (ae == NULL)
-            break;
+        if (isolate->m_idleFibers == 0)
+        {
+            isolate->m_currentFibers++;
+            isolate->m_idleFibers ++;
+
+            exlib::Service::Create(fiber_proc, isolate, stack_size * 1024, "JSFiber");
+        }
 
         {
-            v8::HandleScope handle_scope(isolate);
-            ae->js_callback();
+            v8::HandleScope handle_scope(isolate->m_isolate);
+            ae->js_invoke();
         }
     }
+
+    isolate->m_currentFibers --;
 
     return NULL;
 }
 
-void FiberBase::start()
+void FiberBase::set_caller(Fiber_base* caller)
 {
-    m_caller = JSFiber::current();
+    m_caller = caller;
 
     if (m_caller)
     {
@@ -114,9 +87,9 @@ void FiberBase::start()
         v8::Local<v8::Object> o = wrap();
 
         v8::Local<v8::Array> ks = co->GetOwnPropertyNames();
-        int len = ks->Length();
+        int32_t len = ks->Length();
 
-        int i;
+        int32_t i;
 
         for (i = 0; i < len; i++)
         {
@@ -124,88 +97,93 @@ void FiberBase::start()
             o->Set(k, co->Get(k));
         }
     }
+}
 
-    g_jobs.put(this);
+void FiberBase::start()
+{
+    Isolate* isolate = holder();
+
+    set_caller(JSFiber::current());
+    isolate->m_jobs.put(this);
     Ref();
 }
 
-void JSFiber::callFunction1(v8::Local<v8::Function> func,
-                            v8::Local<v8::Value> *args, int argCount,
-                            v8::Local<v8::Value> &retVal)
+result_t FiberBase::join()
 {
-    v8::TryCatch try_catch;
-    retVal = func->Call(wrap(), argCount, args);
-    if (try_catch.HasCaught())
+    if (!m_quit.isSet())
     {
-        m_error = true;
-        ReportException(try_catch, 0);
+        Isolate::rt _rt;
+        m_quit.wait();
     }
+
+    return 0;
 }
 
-void JSFiber::callFunction(v8::Local<v8::Value> &retVal)
+result_t FiberBase::get_traceInfo(std::string& retVal)
 {
-    size_t i;
+    if (JSFiber::current() == this)
+        retVal = traceInfo(300);
+    else
+        retVal = m_traceInfo;
 
-    std::vector<v8::Local<v8::Value> > argv;
+    return 0;
+}
 
-    argv.resize(m_argv.size());
-    for (i = 0; i < m_argv.size(); i++)
-        argv[i] = v8::Local<v8::Value>::New(isolate, m_argv[i]);
+result_t FiberBase::get_caller(obj_ptr<Fiber_base> &retVal)
+{
+    if (m_caller == NULL)
+        return CALL_RETURN_NULL;
 
-    callFunction1(v8::Local<v8::Function>::New(isolate, m_func),
-                  argv.data(), (int) argv.size(), retVal);
-
-    if (!IsEmpty(retVal))
-        m_result.Reset(isolate, retVal);
+    retVal = m_caller;
+    return 0;
 }
 
 JSFiber *JSFiber::current()
 {
-    fiber_init();
-
     return (JSFiber *)exlib::Fiber::tlsGet(g_tlsCurrent);
 }
 
-void JSFiber::js_callback()
+void JSFiber::js_invoke()
 {
+    scope s(this);
     v8::Local<v8::Value> retVal;
 
-    scope s(this);
+    size_t i;
+    Isolate* isolate = holder();
+    std::vector<v8::Local<v8::Value> > argv;
+    v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate->m_isolate, m_func);
+
+    argv.resize(m_argv.size());
+    for (i = 0; i < m_argv.size(); i++)
+        argv[i] = v8::Local<v8::Value>::New(isolate->m_isolate, m_argv[i]);
+
+    clear();
+
+    retVal = func->Call(wrap(), (int32_t) argv.size(), argv.data());
+
+    if (!IsEmpty(retVal))
+        m_result.Reset(isolate->m_isolate, retVal);
 
     Unref();
-
-    callFunction (retVal);
-
-    v8::Local<v8::Object> o = wrap();
-
-    m_quit.set();
-    dispose();
-
-    s_null->Ref();
-    o->SetAlignedPointerInInternalField(0, s_null);
 }
 
 JSFiber::scope::scope(JSFiber *fb) :
     m_hr(0), m_pFiber(fb)
 {
-    fiber_init();
-
     if (fb == NULL)
         m_pFiber = new JSFiber();
 
-    m_pNext = JSFiber::current();
     exlib::Fiber::tlsPut(g_tlsCurrent, m_pFiber);
+    m_pFiber->holder()->m_fibers.putTail(m_pFiber);
 }
 
 JSFiber::scope::~scope()
 {
-    ReportException(try_catch, m_hr);
-    exlib::Fiber::tlsPut(g_tlsCurrent, m_pNext);
-}
+    m_pFiber->m_quit.set();
 
-void asyncCallBack::callback()
-{
-    g_jobs.put(this);
+    ReportException(try_catch, m_hr);
+    m_pFiber->holder()->m_fibers.remove(m_pFiber);
+    exlib::Fiber::tlsPut(g_tlsCurrent, 0);
 }
 
 } /* namespace fibjs */

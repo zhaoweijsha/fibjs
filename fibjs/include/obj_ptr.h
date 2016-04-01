@@ -27,18 +27,18 @@ public:
 
         void Ref()
         {
-            exlib::atom_inc(&refs_);
+            refs_.inc();
         }
 
         void Unref()
         {
-            if (exlib::atom_dec(&refs_) == 0)
+            if (refs_.dec() == 0)
                 delete this;
         }
 
         void clean()
         {
-            exlib::atom_xchg(&this_, (obj_base *)NULL);
+            this_ = (obj_base *)NULL;
             Unref();
         }
 
@@ -48,20 +48,15 @@ public:
         }
 
     private:
-        volatile int32_t refs_;
-        obj_base *volatile this_;
+        exlib::atomic refs_;
+        exlib::atomic_ptr<obj_base> this_;
     };
 
 public:
-    obj_base() :
-        refs_(0), weak_(NULL)
-    {
-    }
-
     virtual ~obj_base()
     {
         if (weak_)
-            weak_->clean();
+            weak_.value()->clean();
     }
 
 public:
@@ -76,57 +71,53 @@ public:
             delete this;
     }
 
-    void dispose()
-    {
-        if (refs_ == 0)
-            delete this;
-    }
-
-    weak_stub *weak_ptr()
+    weak_stub *get_stub()
     {
         if (weak_)
             return weak_;
 
         weak_stub *pNew = new weak_stub(this);
-        if (exlib::CompareAndSwap(&weak_, (weak_stub *)NULL, pNew))
+        if (weak_.CompareAndSwap((weak_stub *)NULL, pNew))
             delete pNew;
 
         return weak_;
     }
 
 protected:
-    int32_t internalRef()
+    intptr_t internalRef()
     {
-        return exlib::atom_inc(&refs_);
+        return refs_.inc();
     }
 
-    int32_t internalUnref()
+    intptr_t internalUnref()
     {
-        return exlib::atom_dec(&refs_);
+        return refs_.dec();
+    }
+
+    intptr_t refs()
+    {
+        return refs_;
     }
 
 private:
-    volatile int32_t refs_;
-    weak_stub *volatile weak_;
+    exlib::atomic refs_;
+    exlib::atomic_ptr<weak_stub> weak_;
 };
 
 template<class T>
 class obj_ptr
 {
 public:
-    obj_ptr() :
-        p(NULL)
+    obj_ptr()
     {
     }
 
-    obj_ptr(T *lp) :
-        p(NULL)
+    obj_ptr(T *lp)
     {
         operator=(lp);
     }
 
-    obj_ptr(const obj_ptr<T> &lp) :
-        p(NULL)
+    obj_ptr(const obj_ptr<T> &lp)
     {
         operator=(lp);
     }
@@ -204,7 +195,7 @@ public:
 private:
     T *_attach(T *p2)
     {
-        T *p1 = exlib::atom_xchg(&p, p2);
+        T *p1 = p.xchg(p2);
         if (p1)
             p1->Unref();
 
@@ -212,26 +203,23 @@ private:
     }
 
 private:
-    T *volatile p;
+    exlib::atomic_ptr<T> p;
 };
 
 template<class T>
 class weak_ptr
 {
 public:
-    weak_ptr() :
-        p(NULL)
+    weak_ptr()
     {
     }
 
-    weak_ptr(T *lp) :
-        p(NULL)
+    weak_ptr(T *lp)
     {
         _assign(lp);
     }
 
-    weak_ptr(const weak_ptr<T> &lp) :
-        p(NULL)
+    weak_ptr(const weak_ptr<T> &lp)
     {
         _assign(lp);
     }
@@ -265,7 +253,7 @@ public:
 
     operator T *() const
     {
-        return p ? (T *)p->obj() : (T *)NULL;
+        return p ? (T *)p.value()->obj() : (T *)NULL;
     }
 
     T &operator*() const
@@ -275,7 +263,7 @@ public:
 
     bool operator!() const
     {
-        return (p == NULL) || (p->obj() == NULL);
+        return (p == NULL) || (p.value()->obj() == NULL);
     }
 
     bool operator==(T *pT) const
@@ -286,17 +274,17 @@ public:
         if (pT == NULL)
             return false;
 
-        return (T *)p->obj() == pT;
+        return (T *)p.value()->obj() == pT;
     }
 
     T *operator->()
     {
-        return p ? (T *)p->obj() : (T *)NULL;
+        return p ? (T *)p.value()->obj() : (T *)NULL;
     }
 
     void Release()
     {
-        obj_base::weak_stub *p1 = exlib::atom_xchg(&p, (obj_base::weak_stub *)NULL);
+        obj_base::weak_stub *p1 = p.xchg((obj_base::weak_stub *)NULL);
         if (p1)
             p1->Unref();
     }
@@ -304,11 +292,11 @@ public:
 private:
     T *_assign(T *p2)
     {
-        obj_base::weak_stub *p2_ = p2 ? p2->weak_ptr() : (obj_base::weak_stub *)NULL;
+        obj_base::weak_stub *p2_ = p2 ? p2->get_stub() : (obj_base::weak_stub *)NULL;
         if (p2_)
             p2_->Ref();
 
-        obj_base::weak_stub *p1 = exlib::atom_xchg(&p, p2_);
+        obj_base::weak_stub *p1 = p.xchg(p2_);
         if (p1)
             p1->Unref();
 
@@ -316,60 +304,74 @@ private:
     }
 
 private:
-    obj_base::weak_stub *volatile p;
+    exlib::atomic_ptr<obj_base::weak_stub> p;
 };
 
 template<class T>
 class naked_ptr
 {
 public:
-    naked_ptr() :
-        p(NULL)
+    naked_ptr()
     {
     }
 
-    naked_ptr(T *lp) :
-        p(NULL)
+    naked_ptr(T *lp)
     {
         operator=(lp);
     }
 
     ~naked_ptr()
     {
+        dispose();
     }
 
     T *operator=(T *lp)
     {
-        exlib::atom_xchg(&p, lp);
+        dispose();
+        p = lp;
         return lp;
     }
 
-    operator T *() const
+    operator T *()
     {
-        return p;
+        return get_ptr();
     }
 
     T *operator->()
     {
-        return p;
+        return get_ptr();
     }
 
-    void Ref()
+    void dispose()
     {
-        T *p1 = p;
-        if (p1)
-            p1->Ref();
-    }
-
-    void Unref()
-    {
-        T *p1 = p;
-        if (p1)
-            p1->Unref();
+        T *rp1 = rp.xchg(NULL);
+        if (rp1)
+        {
+            rp1->dispose();
+            rp1->Unref();
+        }
     }
 
 private:
-    T *volatile p;
+    T* get_ptr()
+    {
+        T *p1 = p;
+        T *rp1 = rp;
+
+        if (!p1 || p1 == rp1)
+            return p1;
+
+        p1->Ref();
+        rp1 = rp.xchg(p1);
+        if (rp1)
+            rp1->Unref();
+
+        return p1;
+    }
+
+private:
+    exlib::atomic_ptr<T> p;
+    exlib::atomic_ptr<T> rp;
 };
 
 }

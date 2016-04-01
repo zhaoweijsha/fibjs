@@ -22,8 +22,10 @@ result_t Trigger_base::_new(obj_ptr<Trigger_base> &retVal, v8::Local<v8::Object>
 v8::Local<v8::Object> object_base::GetHiddenList(const char *k, bool create,
         bool autoDelete)
 {
+    Isolate* isolate = holder();
+
     v8::Local<v8::Object> o = wrap();
-    v8::Local<v8::String> s = v8::String::NewFromUtf8(isolate, k);
+    v8::Local<v8::String> s = isolate->NewFromUtf8(k);
     v8::Local<v8::Value> es = o->GetHiddenValue(s);
     v8::Local<v8::Object> esa;
 
@@ -31,7 +33,7 @@ v8::Local<v8::Object> object_base::GetHiddenList(const char *k, bool create,
     {
         if (create)
         {
-            esa = v8::Object::New(isolate);
+            esa = v8::Object::New(isolate->m_isolate);
             o->SetHiddenValue(s, esa);
         }
     }
@@ -46,9 +48,9 @@ v8::Local<v8::Object> object_base::GetHiddenList(const char *k, bool create,
 
 static uint64_t s_fid = 0;
 
-inline int32_t putFunction(v8::Local<v8::Object> esa, v8::Local<v8::Function> func)
+inline int32_t putFunction(Isolate* isolate, v8::Local<v8::Object> esa, v8::Local<v8::Function> func)
 {
-    v8::Local<v8::String> s = v8::String::NewFromUtf8(isolate, "_fid");
+    v8::Local<v8::String> s = isolate->NewFromUtf8("_fid");
     v8::Local<v8::Value> fid = func->GetHiddenValue(s);
     char buf[64];
     const int32_t base = 26;
@@ -67,7 +69,7 @@ inline int32_t putFunction(v8::Local<v8::Object> esa, v8::Local<v8::Function> fu
 
         buf[p++] = 0;
 
-        fid = v8::String::NewFromUtf8(isolate, buf);
+        fid = isolate->NewFromUtf8(buf);
         func->SetHiddenValue(s, fid);
     }
 
@@ -80,13 +82,13 @@ inline int32_t putFunction(v8::Local<v8::Object> esa, v8::Local<v8::Function> fu
     return 0;
 }
 
-inline int32_t removeFunction(v8::Local<v8::Object> esa,
+inline int32_t removeFunction(Isolate* isolate, v8::Local<v8::Object> esa,
                               v8::Local<v8::Function> func)
 {
     if (esa.IsEmpty())
         return 0;
 
-    v8::Local<v8::String> s = v8::String::NewFromUtf8(isolate, "_fid");
+    v8::Local<v8::String> s = isolate->NewFromUtf8("_fid");
     v8::Local<v8::Value> fid = func->GetHiddenValue(s);
 
     if (!fid.IsEmpty() && esa->Has(fid))
@@ -103,8 +105,8 @@ inline result_t _map(object_base *o, v8::Local<v8::Object> m,
                      int32_t &retVal)
 {
     v8::Local<v8::Array> ks = m->GetPropertyNames();
-    int len = ks->Length();
-    int i;
+    int32_t len = ks->Length();
+    int32_t i;
 
     retVal = 0;
     for (i = 0; i < len; i++)
@@ -133,14 +135,15 @@ inline result_t _map(object_base *o, v8::Local<v8::Object> m,
 result_t object_base::on(const char *ev, v8::Local<v8::Function> func, int32_t &retVal)
 {
     retVal = 0;
+    Isolate* isolate = holder();
 
     std::string strKey = "_e_";
     strKey.append(ev);
-    retVal += putFunction(GetHiddenList(strKey.c_str(), true), func);
+    retVal += putFunction(isolate, GetHiddenList(strKey.c_str(), true), func);
 
     strKey = "_e1_";
     strKey.append(ev);
-    retVal -= removeFunction(GetHiddenList(strKey.c_str()), func);
+    retVal -= removeFunction(isolate, GetHiddenList(strKey.c_str()), func);
 
     return 0;
 }
@@ -153,14 +156,15 @@ result_t object_base::on(v8::Local<v8::Object> map, int32_t &retVal)
 result_t object_base::once(const char *ev, v8::Local<v8::Function> func, int32_t &retVal)
 {
     retVal = 0;
+    Isolate* isolate = holder();
 
     std::string strKey = "_e1_";
     strKey.append(ev);
-    retVal += putFunction(GetHiddenList(strKey.c_str(), true), func);
+    retVal += putFunction(isolate, GetHiddenList(strKey.c_str(), true), func);
 
     strKey = "_e_";
     strKey.append(ev);
-    retVal -= removeFunction(GetHiddenList(strKey.c_str()), func);
+    retVal -= removeFunction(isolate, GetHiddenList(strKey.c_str()), func);
 
     return 0;
 }
@@ -173,14 +177,15 @@ result_t object_base::once(v8::Local<v8::Object> map, int32_t &retVal)
 result_t object_base::off(const char *ev, v8::Local<v8::Function> func, int32_t &retVal)
 {
     retVal = 0;
+    Isolate* isolate = holder();
 
     std::string strKey = "_e_";
     strKey.append(ev);
-    retVal += removeFunction(GetHiddenList(strKey.c_str()), func);
+    retVal += removeFunction(isolate, GetHiddenList(strKey.c_str()), func);
 
     strKey = "_e1_";
     strKey.append(ev);
-    retVal += removeFunction(GetHiddenList(strKey.c_str()), func);
+    retVal += removeFunction(isolate, GetHiddenList(strKey.c_str()), func);
 
     return 0;
 }
@@ -208,28 +213,28 @@ result_t object_base::off(v8::Local<v8::Object> map, int32_t &retVal)
 }
 
 inline result_t _fire(v8::Local<v8::Function> func, const v8::FunctionCallbackInfo<v8::Value> &args,
-                      int argCount)
+                      int32_t argCount)
 {
     obj_ptr<Fiber_base> retVal;
     return JSFiber::New(func, args, 1, retVal);
 }
 
 inline result_t _fire(v8::Local<v8::Function> func,
-                      v8::Local<v8::Value> *args, int argCount)
+                      v8::Local<v8::Value> *args, int32_t argCount)
 {
     obj_ptr<Fiber_base> retVal;
     return JSFiber::New(func, args, argCount, retVal);
 }
 
 template<typename T>
-result_t fireTrigger(v8::Local<v8::Object> esa, T args, int argCount)
+result_t fireTrigger(v8::Local<v8::Object> esa, T args, int32_t argCount)
 {
     if (esa.IsEmpty())
         return 0;
 
     v8::Local<v8::Array> ks = esa->GetPropertyNames();
-    int len = ks->Length();
-    int i;
+    int32_t len = ks->Length();
+    int32_t i;
     result_t hr;
 
     for (i = 0; i < len; i++)
@@ -247,7 +252,7 @@ result_t fireTrigger(v8::Local<v8::Object> esa, T args, int argCount)
 }
 
 result_t object_base::_trigger(const char *ev, v8::Local<v8::Value> *args,
-                               int argCount)
+                               int32_t argCount)
 {
     extMemory(0);
 
@@ -270,19 +275,19 @@ result_t object_base::_trigger(const char *ev, v8::Local<v8::Value> *args,
     return 0;
 }
 
-result_t object_base::_trigger(const char *ev, Variant *args, int argCount)
+result_t object_base::_trigger(const char *ev, Variant *args, int32_t argCount)
 {
-    class jsTrigger: public asyncRelease
+    class jsTrigger: public AsyncEvent
     {
     public:
-        jsTrigger(object_base *obj, const char *ev, Variant *args, int argCount) :
+        jsTrigger(object_base *obj, const char *ev, Variant *args, int32_t argCount) :
             m_obj(obj), m_ev(ev)
         {
             m_args.append((VariantEx *)args, argCount);
         }
 
     public:
-        virtual void js_callback()
+        virtual void js_invoke()
         {
             JSFiber::scope s;
             size_t i;
@@ -291,9 +296,9 @@ result_t object_base::_trigger(const char *ev, Variant *args, int argCount)
 
             argv.resize(m_args.size());
             for (i = 0; i < m_args.size(); i++)
-                argv[i] = v8::Local<v8::Value>::New(isolate, m_args[i]);
+                argv[i] = v8::Local<v8::Value>::New(m_obj->holder()->m_isolate, m_args[i]);
 
-            m_obj->_trigger(m_ev.c_str(), argv.data(), (int) argv.size());
+            m_obj->_trigger(m_ev.c_str(), argv.data(), (int32_t) argv.size());
 
             delete this;
         }
@@ -304,7 +309,7 @@ result_t object_base::_trigger(const char *ev, Variant *args, int argCount)
         QuickArray<VariantEx> m_args;
     };
 
-    (new jsTrigger(this, ev, args, argCount))->post(0);
+    (new jsTrigger(this, ev, args, argCount))->sync(holder());
     return 0;
 }
 

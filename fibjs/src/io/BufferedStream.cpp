@@ -8,16 +8,15 @@
 #include "BufferedStream.h"
 #include "Stream.h"
 #include "Buffer.h"
-#include "PacketMessage.h"
 
 namespace fibjs
 {
 
-class asyncBuffer: public asyncState
+class asyncBuffer: public AsyncState
 {
 public:
-    asyncBuffer(BufferedStream *pThis, exlib::AsyncEvent *ac) :
-        asyncState(ac), m_streamEnd(false), m_pThis(pThis)
+    asyncBuffer(BufferedStream *pThis, AsyncEvent *ac) :
+        AsyncState(ac), m_streamEnd(false), m_pThis(pThis)
     {
         set(process);
     }
@@ -27,11 +26,17 @@ public:
         return CALL_RETURN_NULL;
     }
 
-    static int process(asyncState *pState, int n)
+    static int32_t process(AsyncState *pState, int32_t n)
     {
         asyncBuffer *pThis = (asyncBuffer *) pState;
 
         result_t hr = pThis->process(pThis->m_streamEnd);
+        if (pThis->m_pThis->m_pos == (int32_t)pThis->m_pThis->m_buf.length())
+        {
+            pThis->m_pThis->m_buf.clear();
+            pThis->m_pThis->m_pos = 0;
+        }
+
         if (hr != CALL_E_PENDDING)
             return pThis->done(hr);
 
@@ -39,7 +44,7 @@ public:
         return pThis->m_pThis->m_stm->read(-1, pThis->m_buf, pThis);
     }
 
-    static int ready(asyncState *pState, int n)
+    static int32_t ready(AsyncState *pState, int32_t n)
     {
         asyncBuffer *pThis = (asyncBuffer *) pState;
 
@@ -72,13 +77,13 @@ result_t BufferedStream_base::_new(Stream_base *stm,
 }
 
 result_t BufferedStream::read(int32_t bytes, obj_ptr<Buffer_base> &retVal,
-                              exlib::AsyncEvent *ac)
+                              AsyncEvent *ac)
 {
     class asyncRead: public asyncBuffer
     {
     public:
         asyncRead(BufferedStream *pThis, int32_t bytes,
-                  obj_ptr<Buffer_base> &retVal, exlib::AsyncEvent *ac) :
+                  obj_ptr<Buffer_base> &retVal, AsyncEvent *ac) :
             asyncBuffer(pThis, ac), m_bytes(bytes), m_retVal(retVal)
         {
         }
@@ -86,15 +91,15 @@ result_t BufferedStream::read(int32_t bytes, obj_ptr<Buffer_base> &retVal,
         static result_t process(BufferedStream *pThis, int32_t bytes,
                                 obj_ptr<Buffer_base> &retVal, bool streamEnd)
         {
-            int n = bytes - (int) pThis->m_strbuf.size();
-            int n1 = (int) pThis->m_buf.length() - pThis->m_pos;
+            int32_t n = bytes - (int32_t) pThis->m_strbuf.size();
+            int32_t n1 = (int32_t) pThis->m_buf.length() - pThis->m_pos;
 
             if (n > n1)
                 n = n1;
 
             pThis->append(n);
 
-            if (streamEnd || bytes == (int) pThis->m_strbuf.size())
+            if (streamEnd || bytes == (int32_t) pThis->m_strbuf.size())
             {
                 std::string s = pThis->m_strbuf.str();
 
@@ -121,7 +126,7 @@ result_t BufferedStream::read(int32_t bytes, obj_ptr<Buffer_base> &retVal,
 
     if (bytes < 0)
     {
-        int n = (int) m_buf.length() - m_pos;
+        int32_t n = (int32_t) m_buf.length() - m_pos;
         if (n > 0)
         {
             if (m_pos == 0)
@@ -149,30 +154,30 @@ result_t BufferedStream::read(int32_t bytes, obj_ptr<Buffer_base> &retVal,
     return (new asyncRead(this, bytes, retVal, ac))->post(0);
 }
 
-result_t BufferedStream::write(Buffer_base *data, exlib::AsyncEvent *ac)
+result_t BufferedStream::write(Buffer_base *data, AsyncEvent *ac)
 {
     return m_stm->write(data, ac);
 }
 
-result_t BufferedStream::close(exlib::AsyncEvent *ac)
+result_t BufferedStream::close(AsyncEvent *ac)
 {
     return m_stm->close(ac);
 }
 
 result_t BufferedStream::copyTo(Stream_base *stm, int64_t bytes,
-                                int64_t &retVal, exlib::AsyncEvent *ac)
+                                int64_t &retVal, AsyncEvent *ac)
 {
     return copyStream(this, stm, bytes, retVal, ac);
 }
 
 result_t BufferedStream::readText(int32_t size, std::string &retVal,
-                                  exlib::AsyncEvent *ac)
+                                  AsyncEvent *ac)
 {
     class asyncRead: public asyncBuffer
     {
     public:
         asyncRead(BufferedStream *pThis, int32_t size,
-                  std::string &retVal, exlib::AsyncEvent *ac) :
+                  std::string &retVal, AsyncEvent *ac) :
             asyncBuffer(pThis, ac), m_size(size), m_retVal(retVal)
         {
         }
@@ -180,15 +185,15 @@ result_t BufferedStream::readText(int32_t size, std::string &retVal,
         static result_t process(BufferedStream *pThis, int32_t size,
                                 std::string &retVal, bool streamEnd)
         {
-            int n = size - (int) pThis->m_strbuf.size();
-            int n1 = (int) pThis->m_buf.length() - pThis->m_pos;
+            int32_t n = size - (int32_t) pThis->m_strbuf.size();
+            int32_t n1 = (int32_t) pThis->m_buf.length() - pThis->m_pos;
 
             if (n > n1)
                 n = n1;
 
             pThis->append(n);
 
-            if (streamEnd || size == (int) pThis->m_strbuf.size())
+            if (streamEnd || size == (int32_t) pThis->m_strbuf.size())
             {
                 result_t hr = pThis->m_iconv.decode(pThis->m_strbuf.str(), retVal);
                 if (hr < 0)
@@ -224,7 +229,7 @@ result_t BufferedStream::readText(int32_t size, std::string &retVal,
 }
 
 result_t BufferedStream::readLine(int32_t maxlen, std::string &retVal,
-                                  exlib::AsyncEvent *ac)
+                                  AsyncEvent *ac)
 {
     return readUntil(m_eol.c_str(), maxlen, retVal, ac);
 }
@@ -234,7 +239,8 @@ result_t BufferedStream::readLines(int32_t maxlines, v8::Local<v8::Array> &retVa
     result_t hr = 0;
     std::string str;
     int32_t n = 0;
-    retVal = v8::Array::New(isolate);
+    Isolate* isolate = holder();
+    retVal = v8::Array::New(isolate->m_isolate);
 
     if (maxlines == 0)
         return 0;
@@ -248,8 +254,7 @@ result_t BufferedStream::readLines(int32_t maxlines, v8::Local<v8::Array> &retVa
         if (hr > 0)
             return 0;
 
-        retVal->Set(n ++, v8::String::NewFromUtf8(isolate, str.c_str(),
-                    v8::String::kNormalString, (int)str.length()));
+        retVal->Set(n ++, isolate->NewFromUtf8(str));
         if (maxlines > 0)
         {
             maxlines --;
@@ -262,13 +267,13 @@ result_t BufferedStream::readLines(int32_t maxlines, v8::Local<v8::Array> &retVa
 }
 
 result_t BufferedStream::readUntil(const char *mk, int32_t maxlen,
-                                   std::string &retVal, exlib::AsyncEvent *ac)
+                                   std::string &retVal, AsyncEvent *ac)
 {
     class asyncRead: public asyncBuffer
     {
     public:
         asyncRead(BufferedStream *pThis, const char *mk, int32_t maxlen,
-                  std::string &retVal, exlib::AsyncEvent *ac) :
+                  std::string &retVal, AsyncEvent *ac) :
             asyncBuffer(pThis, ac), m_mk(mk), m_maxlen(maxlen), m_retVal(
                 retVal)
         {
@@ -277,20 +282,20 @@ result_t BufferedStream::readUntil(const char *mk, int32_t maxlen,
         static result_t process(BufferedStream *pThis, const char *mk,
                                 int32_t maxlen, std::string &retVal, bool streamEnd)
         {
-            int pos = pThis->m_pos;
-            int mklen = (int) qstrlen(mk);
+            int32_t pos = pThis->m_pos;
+            int32_t mklen = (int32_t) qstrlen(mk);
 
             if (mklen == 0)
                 mklen = 1;
 
-            while ((pos < (int) pThis->m_buf.length())
+            while ((pos < (int32_t) pThis->m_buf.length())
                     && (pThis->m_temp < mklen))
             {
                 if (pThis->m_temp == 0)
                 {
                     char ch = mk[0];
 
-                    while (pos < (int) pThis->m_buf.length())
+                    while (pos < (int32_t) pThis->m_buf.length())
                         if (pThis->m_buf[pos++] == ch)
                         {
                             pThis->m_temp++;
@@ -300,7 +305,7 @@ result_t BufferedStream::readUntil(const char *mk, int32_t maxlen,
 
                 if (pThis->m_temp > 0)
                 {
-                    while ((pos < (int) pThis->m_buf.length())
+                    while ((pos < (int32_t) pThis->m_buf.length())
                             && (pThis->m_temp < mklen))
                     {
                         if (pThis->m_buf[pos] != mk[pThis->m_temp])
@@ -317,7 +322,7 @@ result_t BufferedStream::readUntil(const char *mk, int32_t maxlen,
             }
 
             if (maxlen > 0
-                    && ((int) pThis->m_strbuf.size() + (pos - pThis->m_pos)
+                    && ((int32_t) pThis->m_strbuf.size() + (pos - pThis->m_pos)
                         > maxlen + mklen))
                 return CHECK_ERROR(CALL_E_INVALID_DATA);
 
@@ -365,124 +370,7 @@ result_t BufferedStream::readUntil(const char *mk, int32_t maxlen,
     return (new asyncRead(this, mk, maxlen, retVal, ac))->post(0);
 }
 
-result_t BufferedStream::readPacket(int32_t limit, obj_ptr<Buffer_base> &retVal,
-                                    exlib::AsyncEvent *ac)
-{
-    class asyncReadPacket: public asyncBuffer
-    {
-    public:
-        asyncReadPacket(BufferedStream *pThis, int32_t limit,
-                        obj_ptr<Buffer_base> &retVal, exlib::AsyncEvent *ac) :
-            asyncBuffer(pThis, ac), m_limit(limit), m_retVal(retVal)
-        {
-        }
-
-        static result_t process(BufferedStream *pThis, int32_t limit,
-                                obj_ptr<Buffer_base> &retVal, bool streamEnd)
-        {
-            int n1 = (int) pThis->m_buf.length() - pThis->m_pos;
-
-            if (pThis->m_temp == 0)
-            {
-                int n2 = (int) pThis->m_strbuf.size();
-                int n3 = 0;
-
-                while (n3 < n1 && ((unsigned char)pThis->m_buf[pThis->m_pos + n3] & 0x80))
-                    n3 ++;
-
-                if (n2 + n3 > (int)sizeof(int32_t))
-                    return CHECK_ERROR(CALL_E_INVALID_DATA);
-
-                if (n3 == n1)
-                {
-                    if (streamEnd)
-                    {
-                        pThis->m_temp = 0;
-                        return CALL_RETURN_NULL;
-                    }
-
-                    pThis->append(n3);
-                    return CHECK_ERROR(CALL_E_PENDDING);
-                }
-
-                n3 ++;
-
-                unsigned char buf[5];
-
-                if (n2 > 0)
-                    memcpy(&buf, pThis->m_strbuf.str().c_str(), n2);
-
-                memcpy((char *)&buf + n2, pThis->m_buf.c_str() + pThis->m_pos, n3);
-                pThis->m_pos += n3;
-                n1 -= n3;
-
-                n2 += n3;
-                n3 = 0;
-                while (n3 < n2)
-                {
-                    pThis->m_temp = (pThis->m_temp << 7) | (buf[n3] & 0x7f);
-                    n3 ++;
-                }
-            }
-
-            if (pThis->m_temp <= 0)
-            {
-                retVal = new Buffer();
-                return 0;
-            }
-
-            if (limit > 0 && pThis->m_temp > limit)
-            {
-                pThis->m_temp = 0;
-                return CHECK_ERROR(CALL_E_INVALID_DATA);
-            }
-
-            int bytes = pThis->m_temp;
-            int n = bytes - (int) pThis->m_strbuf.size();
-
-            if (n > n1)
-                n = n1;
-
-            pThis->append(n);
-
-            if (bytes == (int) pThis->m_strbuf.size())
-            {
-                std::string s = pThis->m_strbuf.str();
-                retVal = new Buffer(s);
-                pThis->m_temp = 0;
-                return 0;
-            }
-
-            if (streamEnd)
-            {
-                pThis->m_temp = 0;
-                return CALL_RETURN_NULL;
-            }
-
-            return CHECK_ERROR(CALL_E_PENDDING);
-        }
-
-        virtual result_t process(bool streamEnd)
-        {
-            return process(m_pThis, m_limit, m_retVal, streamEnd);
-        }
-
-    public:
-        int32_t m_limit;
-        obj_ptr<Buffer_base> &m_retVal;
-    };
-
-    result_t hr = asyncReadPacket::process(this, limit, retVal, false);
-    if (hr != CALL_E_PENDDING)
-        return hr;
-
-    if (!ac)
-        return CHECK_ERROR(CALL_E_NOSYNC);
-
-    return (new asyncReadPacket(this, limit, retVal, ac))->post(0);
-}
-
-result_t BufferedStream::writeText(const char *txt, exlib::AsyncEvent *ac)
+result_t BufferedStream::writeText(const char *txt, AsyncEvent *ac)
 {
     if (!ac)
         return CHECK_ERROR(CALL_E_NOSYNC);
@@ -497,7 +385,7 @@ result_t BufferedStream::writeText(const char *txt, exlib::AsyncEvent *ac)
     return write(data, ac);
 }
 
-result_t BufferedStream::writeLine(const char *txt, exlib::AsyncEvent *ac)
+result_t BufferedStream::writeLine(const char *txt, AsyncEvent *ac)
 {
     if (!ac)
         return CHECK_ERROR(CALL_E_NOSYNC);
@@ -511,25 +399,6 @@ result_t BufferedStream::writeLine(const char *txt, exlib::AsyncEvent *ac)
     strBuf.append(m_eol);
     obj_ptr<Buffer_base> data = new Buffer(strBuf);
     return write(data, ac);
-}
-
-result_t BufferedStream::writePacket(Buffer_base *data, exlib::AsyncEvent *ac)
-{
-    if (!ac)
-        return CHECK_ERROR(CALL_E_NOSYNC);
-
-    std::string strBuf;
-    std::string strData;
-    int32_t len;
-
-    data->toString(strData);
-    len = (int32_t)strData.length();
-
-    PacketMessage::packetSize(len, strBuf);
-    strBuf.append(strData);
-
-    obj_ptr<Buffer_base> data1 = new Buffer(strBuf);
-    return write(data1, ac);
 }
 
 result_t BufferedStream::get_stream(obj_ptr<Stream_base> &retVal)

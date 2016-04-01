@@ -65,15 +65,15 @@ private:
     void parseHash(const char *&url);
 
 public:
-    inline static void decodeURI(const char *url, int sz, std::string &retVal)
+    inline static void decodeURI(const char *url, int32_t sz, std::string &retVal, bool space = false)
     {
         if (sz < 0)
-            sz = (int) qstrlen(url);
+            sz = (int32_t) qstrlen(url);
 
         if (sz == 0)
             return;
 
-        int len, l;
+        int32_t len, l;
         const char *src;
         unsigned char ch;
         char *bstr;
@@ -92,7 +92,7 @@ public:
                      && qisxdigit(src[3]) && qisxdigit(src[4]) && qisxdigit(src[5]))
             {
                 wchar wch = (qhex(src[2]) << 12) + (qhex(src[3]) << 8)
-                              + (qhex(src[4]) << 4) + qhex(src[5]);
+                            + (qhex(src[4]) << 4) + qhex(src[5]);
 
                 len += utf8_strlen(&wch, 1) - 1;
 
@@ -119,13 +119,15 @@ public:
                      && qisxdigit(src[3]) && qisxdigit(src[4]) && qisxdigit(src[5]))
             {
                 wchar wch = (qhex(src[2]) << 12) + (qhex(src[3]) << 8)
-                              + (qhex(src[4]) << 4) + qhex(src[5]);
+                            + (qhex(src[4]) << 4) + qhex(src[5]);
 
                 bstr += utf8_wcstombs(&wch, 1, bstr, 5);
 
                 src += 5;
                 l -= 5;
             }
+            else if (space && ch == '+')
+                *bstr++ = ' ';
             else
                 *bstr++ = ch;
         }
@@ -133,18 +135,18 @@ public:
         retVal = str;
     }
 
-    inline static void encodeURI(const char *url, int sz, std::string &retVal,
+    inline static void encodeURI(const char *url, int32_t sz, std::string &retVal,
                                  const char *tab)
     {
         static const char *hex = "0123456789ABCDEF";
 
         if (sz < 0)
-            sz = (int) qstrlen(url);
+            sz = (int32_t) qstrlen(url);
 
         if (sz == 0)
             return;
 
-        int len, l;
+        int32_t len, l;
         const char *src;
         unsigned char ch;
         char *bstr;

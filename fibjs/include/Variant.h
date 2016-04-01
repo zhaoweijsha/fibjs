@@ -16,6 +16,14 @@
 namespace fibjs
 {
 
+class TryCatch : public v8::TryCatch
+{
+public:
+    ~TryCatch() {
+        Reset();
+    }
+};
+
 inline bool IsEmpty(v8::Local<v8::Value> &v)
 {
     return v.IsEmpty() || v->IsUndefined() || v->IsNull();
@@ -24,10 +32,10 @@ inline bool IsEmpty(v8::Local<v8::Value> &v)
 inline void extend(const v8::Local<v8::Object> src,
                    v8::Local<v8::Object> &dest, bool bDataOnly = true)
 {
-    v8::TryCatch try_catch;
+    TryCatch try_catch;
     v8::Local<v8::Array> ks = src->GetPropertyNames();
-    int len = ks->Length();
-    int i;
+    int32_t len = ks->Length();
+    int32_t i;
 
     for (i = 0; i < len; i++)
     {
@@ -56,6 +64,7 @@ public:
         VT_String,
         VT_Object,
         VT_JSValue,
+        VT_JSON,
         VT_Type = 255,
         VT_Persistent = 256
     };
@@ -97,7 +106,7 @@ public:
 
     void clear()
     {
-        if (type() == VT_String)
+        if (type() == VT_String || type() == VT_JSON)
             strVal().~basic_string();
         else if (type() == VT_Object && m_Val.objVal)
             m_Val.objVal->Unref();
@@ -130,7 +139,7 @@ public:
         if (v.type() == VT_JSValue)
         {
             if (v.isPersistent())
-                return operator=(v8::Local<v8::Value>::New(isolate, v.jsValEx()));
+                return operator=(v8::Local<v8::Value>::New(Isolate::current()->m_isolate, v.jsValEx()));
             else
                 return operator=(v.jsVal());
         }
@@ -285,14 +294,16 @@ public:
         return m_Val.intVal;
     }
 
-    void parseNumber(const char *str, int len = -1);
-    void parseDate(const char *str, int len = -1)
+    void parseNumber(const char *str, int32_t len = -1);
+    void parseDate(const char *str, int32_t len = -1)
     {
         set_type(VT_Date);
         dateVal().parse(str, len);
     }
 
     bool toString(std::string &retVal);
+
+    void toJSON();
 
     object_base *object() const
     {

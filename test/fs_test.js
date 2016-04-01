@@ -1,7 +1,10 @@
 var test = require("test");
+var coroutine = require('coroutine');
 test.setup();
 
 var fs = require('fs');
+
+var vmid = coroutine.vmid;
 
 function unlink(pathname) {
 	try {
@@ -9,8 +12,8 @@ function unlink(pathname) {
 	} catch (e) {}
 }
 
-var pathname = 'test_dir';
-var pathname1 = 'test1_dir';
+var pathname = 'test_dir' + vmid;
+var pathname1 = 'test1_dir' + vmid;
 
 var win = require("os").type == "Windows";
 
@@ -109,23 +112,10 @@ describe('fs', function() {
 		});
 	}
 
-	it("async gc", function() {
-		var f = fs.open('fs_test.js');
-		var num = 0;
-
-		(function() {
-			num = 1;
-		}).start();
-		f = undefined;
-		assert.equal(num, 0);
-		GC();
-		assert.equal(num, 1);
-	});
-
 	it("file read & write", function() {
 		var f = fs.open('fs_test.js');
 
-		var f1 = fs.open('fs_test.js.bak', 'w+');
+		var f1 = fs.open('fs_test.js.bak' + vmid, 'w+');
 		f1.write(f.read(f.size()));
 
 		f1.rewind();
@@ -135,7 +125,7 @@ describe('fs', function() {
 
 		f.close();
 		f1.close();
-		fs.unlink('fs_test.js.bak');
+		fs.unlink('fs_test.js.bak' + vmid);
 	});
 
 	it("readFile", function() {
@@ -189,7 +179,7 @@ describe('fs', function() {
 
 	it("copyTo", function() {
 		var f = fs.open('fs_test.js');
-		var f1 = fs.open('fs_test.js.bak', 'w');
+		var f1 = fs.open('fs_test.js.bak' + vmid, 'w');
 
 		var s = f.copyTo(f1, 100);
 		assert.equal(s, 100);
@@ -200,7 +190,7 @@ describe('fs', function() {
 		f.close();
 		f1.close();
 
-		fs.unlink('fs_test.js.bak');
+		fs.unlink('fs_test.js.bak' + vmid);
 	});
 
 	it("readdir", function() {

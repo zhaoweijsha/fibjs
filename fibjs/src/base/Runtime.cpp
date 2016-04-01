@@ -7,123 +7,154 @@
 
 #include "Runtime.h"
 #include "Fiber.h"
-
-#ifdef MacOS
-#include <sys/sysctl.h>
-#include <pthread.h>
-#endif
+#include "SandBox.h"
+#include "console.h"
+#include "ifs/global.h"
+#include "ifs/process.h"
 
 namespace fibjs
 {
 
-#ifdef MacOS
+static int32_t s_tls_rt;
 
-static pthread_key_t keyRuntime;
-static pthread_once_t once = PTHREAD_ONCE_INIT;
-static intptr_t kMacTlsBaseOffset = -1;
-
-intptr_t MacTlsBaseOffset()
+void init_rt()
 {
-    if (kMacTlsBaseOffset == -1)
-    {
-        const size_t kBufferSize = 128;
-        char buffer[kBufferSize];
-        size_t buffer_size = kBufferSize;
-        int ctl_name[] =
-        { CTL_KERN, KERN_OSRELEASE };
-        sysctl(ctl_name, 2, buffer, &buffer_size, NULL, 0);
-        buffer[kBufferSize - 1] = '\0';
-        char *period_pos = strchr(buffer, '.');
-        *period_pos = '\0';
-        int kernel_version_major = static_cast<int>(strtol(buffer, NULL, 10));
-
-        if (kernel_version_major < 11)
-        {
-#if defined(I386)
-            kMacTlsBaseOffset = 0x48;
-#else
-            kMacTlsBaseOffset = 0x60;
-#endif
-        }
-        else
-        {
-            kMacTlsBaseOffset = 0;
-        }
-    }
-
-    return kMacTlsBaseOffset;
+	s_tls_rt = exlib::Fiber::tlsAlloc();
 }
 
-inline intptr_t FastThreadLocal(intptr_t index)
+void Runtime::reg()
 {
-    intptr_t result;
-#if defined(I386)
-    asm("movl %%gs:(%1,%2,4), %0;"
-        :"=r"(result)
-        :"r"(kMacTlsBaseOffset), "r"(index));
-#else
-    asm("movq %%gs:(%1,%2,8), %0;"
-        :"=r"(result)
-        :"r"(kMacTlsBaseOffset), "r"(index));
-#endif
-    return result;
+	exlib::Fiber::tlsPut(s_tls_rt, this);
 }
 
-static void once_run(void)
+Runtime &Runtime::current()
 {
-    MacTlsBaseOffset();
-    pthread_key_create(&keyRuntime, NULL);
+	return *(Runtime *)exlib::Fiber::tlsGet(s_tls_rt);
 }
 
-void Runtime::reg(Runtime *rt)
+class ShellArrayBufferAllocator : public v8::ArrayBuffer::Allocator
 {
-    pthread_once(&once, once_run);
-    pthread_setspecific(keyRuntime, rt);
+public:
+	virtual void* Allocate(size_t length)
+	{
+		void* data = AllocateUninitialized(length);
+		return data == NULL ? data : memset(data, 0, length);
+	}
+
+	virtual void* AllocateUninitialized(size_t length)
+	{
+		return malloc(length);
+	}
+
+	virtual void Free(void* data, size_t)
+	{
+		free(data);
+	}
+};
+
+exlib::LockedList<Isolate> s_isolates;
+exlib::atomic s_iso_id;
+extern int32_t stack_size;
+
+bool Isolate::rt::g_trace = false;
+
+inline JSFiber* saveTrace()
+{
+	JSFiber* fiber = JSFiber::current();
+	assert(fiber != 0);
+	fiber->m_traceInfo = traceInfo(300);
+	return fiber;
 }
 
-#elif defined(OpenBSD)
-
-static pthread_key_t keyRuntime;
-static pthread_once_t once = PTHREAD_ONCE_INIT;
-
-static void once_run(void)
+Isolate::rt::rt() :
+	m_fiber(g_trace ? saveTrace() : NULL),
+	unlocker(m_isolate->m_isolate)
 {
-    pthread_key_create(&keyRuntime, NULL);
 }
 
-void Runtime::reg(Runtime *rt)
+Isolate::rt::~rt()
 {
-    pthread_once(&once, once_run);
-    pthread_setspecific(keyRuntime, rt);
+	if (m_fiber)
+		m_fiber->m_traceInfo.resize(0);
 }
 
-#else
-
-#if defined(_MSC_VER)
-__declspec(thread) Runtime *th_rt = NULL;
-#else
-__thread Runtime *th_rt = NULL;
-#endif
-
-void Runtime::reg(Runtime *rt)
+static void fb_GCCallback(v8::Isolate* js_isolate, v8::GCType type, v8::GCCallbackFlags flags)
 {
-    th_rt = rt;
+	Isolate *isolate = Isolate::current();
+	exlib::linkitem* p;
+	exlib::List<exlib::linkitem> freelist;
+
+	while (true)
+	{
+		isolate->m_weakLock.lock();
+		isolate->m_weak.getList(freelist);
+		isolate->m_weakLock.unlock();
+
+		if (freelist.empty())
+			break;
+
+		while ((p = freelist.getHead()) != 0)
+			object_base::gc_delete(p);
+	}
 }
 
-#endif
-
-Runtime &Runtime::now()
+void *init_proc(void *p)
 {
-    if (exlib::Service::hasService())
-        return JSFiber::current()->runtime();
+	Isolate* isolate = (Isolate*)p;
+	Runtime rt(isolate);
 
-#ifdef MacOS
-    return *(Runtime *) FastThreadLocal(keyRuntime);
-#elif defined(OpenBSD)
-    return *(Runtime *) pthread_getspecific(keyRuntime);
-#else
-    return *th_rt;
-#endif
+	isolate->init();
+	return FiberBase::fiber_proc(p);
+}
+
+Isolate::Isolate(const char *fname) :
+	m_id((int32_t)s_iso_id.inc()),
+	m_test_setup_bbd(false), m_test_setup_tdd(false), m_test(NULL),
+	m_currentFibers(0), m_idleFibers(0),
+	m_loglevel(console_base::_NOTSET), m_interrupt(false)
+{
+	if (fname)
+		m_fname = fname;
+
+	static v8::Isolate::CreateParams create_params;
+	static ShellArrayBufferAllocator array_buffer_allocator;
+	create_params.array_buffer_allocator = &array_buffer_allocator;
+
+	m_isolate = v8::Isolate::New(create_params);
+	m_isolate->AddGCEpilogueCallback(fb_GCCallback, v8::kGCTypeMarkSweepCompact);
+
+	m_currentFibers++;
+	m_idleFibers ++;
+
+	exlib::Service::Create(init_proc, this, stack_size * 1024, "JSFiber");
+}
+
+Isolate* Isolate::current()
+{
+	return Runtime::current().isolate();
+}
+
+void Isolate::init()
+{
+	s_isolates.putTail(this);
+
+	v8::Locker locker(m_isolate);
+	v8::Isolate::Scope isolate_scope(m_isolate);
+	v8::HandleScope handle_scope(m_isolate);
+
+	v8::Local<v8::Context> _context = v8::Context::New(m_isolate);
+	m_context.Reset(m_isolate, _context);
+
+	v8::Local<v8::Object> glob = _context->Global();
+	m_global.Reset(m_isolate, glob);
+
+	v8::Context::Scope context_scope(_context);
+
+	m_topSandbox = new SandBox();
+	m_topSandbox->initRoot();
+
+	static const char* skips[] = {"repl", "argv", "__filename", "__dirname", "__sbname", "global", NULL};
+	global_base::class_info().Attach(this, glob, skips);
 }
 
 } /* namespace fibjs */

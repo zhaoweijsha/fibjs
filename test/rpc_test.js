@@ -8,22 +8,31 @@ var net = require('net');
 var io = require('io');
 var encoding = require('encoding');
 var os = require('os');
+var coroutine = require('coroutine');
 
-var m = new http.Request();
-
-var jr;
-
-m.value = 'test/tttt/tttt/';
-m.setHeader("Content-Type", "application/json, charset=utf-8;");
-m.body.write(encoding.jsonEncode({
-	method: 'aaaa',
-	params: [100, 200],
-	id: 1234
-}));
+var base_port = coroutine.vmid * 10000;
 
 describe("rpc", function() {
+	var ss = [];
+
+	var m = new http.Request();
+
+	m.value = 'test/tttt/tttt/';
+	m.setHeader("Content-Type", "application/json, charset=utf-8;");
+	m.body.write(encoding.json.encode({
+		method: 'aaaa',
+		params: [100, 200],
+		id: 1234
+	}));
+
+	after(function() {
+		ss.forEach(function(s) {
+			s.close();
+		});
+	});
+
 	it("function", function() {
-		jr = rpc.json(function(m, p1, p2) {
+		var jr = rpc.json(function(m, p1, p2) {
 			m.value = '';
 			return p1 + ',' + p2;
 		});
@@ -37,7 +46,7 @@ describe("rpc", function() {
 
 	it("map", function() {
 		m.value = 'test';
-		jr = rpc.json({
+		var jr = rpc.json({
 			test: {
 				aaaa: function(m, p1, p2) {
 					m.value = '';
@@ -54,7 +63,7 @@ describe("rpc", function() {
 	});
 
 	it("params", function() {
-		jr = rpc.json({
+		var jr = rpc.json({
 			'xhr': {
 				test: {
 					fun: function(v, a, b) {
@@ -68,7 +77,7 @@ describe("rpc", function() {
 
 		m.value = '/xhr/test';
 		m.setHeader("Content-Type", "application/json");
-		m.body.write(encoding.jsonEncode({
+		m.body.write(encoding.json.encode({
 			method: 'fun',
 			params: [100, 200],
 			id: 1234
@@ -81,22 +90,47 @@ describe("rpc", function() {
 			'{"id":1234,"result":300}');
 	});
 
-	it("encodeURI", function() {
-		m = new http.Request();
+	it("Task", function() {
+		assert.throws(function() {
+			var task = rpc.open("./not_exists.js");
+		});
 
-		m.value = '/xhr/test';
-		m.setHeader("Content-Type", "application/x-www-form-urlencoded");
-		m.body.write("jsonrpc=" + encoding.encodeURIComponent(encoding.jsonEncode({
-			method: 'fun',
-			params: [100, 200],
-			id: 1234
-		})));
+		assert.throws(function() {
+			var task = rpc.open("../not_exists.js");
+		});
 
-		jr.invoke(m);
+		assert.throws(function() {
+			var task = rpc.open("http://127.0.0.1/not_exists.js");
+		});
 
-		m.response.body.rewind();
-		assert.equal(m.response.body.read().toString(),
-			'<html><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><script>window.name=\"{\\\"id\\\":1234,\\\"result\\\":300}\";</script></html>');
+		var task = rpc.open("/not_exists.js");
+		var task1 = task.func;
+		var task2 = task['1234'];
+
+		assert.throws(function() {
+			task();
+		});
+
+		var task = rpc.open("module/c4.js");
+		assert.equal(task.foo(), 1);
+		assert.equal(task.arg_count(100, 200), 2);
+		assert.deepEqual(task.arg_obj({
+			a: 100,
+			b: 200
+		}), {
+			a: 100,
+			b: 200
+		});
+
+		assert.deepEqual(task.arg_obj(new Buffer("1234567")), new Buffer("1234567"));
+
+		var n = 0;
+		coroutine.start(function() {
+			n = 1;
+		});
+
+		task.foo();
+		assert.equal(n, 1);
 	});
 
 	it("over tcp", function() {
@@ -106,10 +140,12 @@ describe("rpc", function() {
 			}
 		}));
 		hdlr.crossDomain = true;
-		new net.TcpServer(8090, hdlr).asyncRun();
+		var svr = new net.TcpServer(8090 + base_port, hdlr);
+		ss.push(svr.socket);
+		svr.asyncRun();
 
 		var s = new net.Socket();
-		s.connect('127.0.0.1', 8090);
+		s.connect('127.0.0.1', 8090 + base_port);
 
 		var bs = new io.BufferedStream(s);
 		bs.EOL = '\r\n';
@@ -123,8 +159,9 @@ describe("rpc", function() {
 		}
 	});
 
-	it("Garbage Collection", function() {
+	xit("Garbage Collection", function() {
 		GC();
+
 		var no1 = os.memoryUsage().nativeObjects.objects;
 
 		rpc.json({});
@@ -134,4 +171,4 @@ describe("rpc", function() {
 	});
 });
 
-//test.run();
+// test.run(console.DEBUG);

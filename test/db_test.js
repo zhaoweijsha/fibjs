@@ -3,6 +3,9 @@ test.setup();
 
 var db = require('db');
 var fs = require('fs');
+var coroutine = require('coroutine');
+
+var vmid = coroutine.vmid;
 
 describe("db", function() {
 	it("escape", function() {
@@ -71,6 +74,20 @@ describe("db", function() {
 			assert.strictEqual(r['t2'], 'aaaaa');
 			assert.strictEqual(r['t3'].toString(), 'DDDDDDDDDD');
 			assert.deepEqual(r['t4'], new Date('1998-04-14 12:12:12'));
+
+			assert.deepEqual(rs.fields, [
+				"t1",
+				"t2",
+				"t3",
+				"t4"
+			]);
+
+			assert.deepEqual(Object.keys(r), [
+				"t1",
+				"t2",
+				"t3",
+				"t4"
+			]);
 		});
 
 		it("binary", function() {
@@ -87,13 +104,22 @@ describe("db", function() {
 				assert.equal(rs[0].t3[0], i);
 			}
 		});
+
+		it("execute bug", function() {
+			var a = 0;
+			coroutine.start(function() {
+				a = 1;
+			})
+			conn.execute("select 100;", 100);
+			assert.equal(a, 1);
+		});
 	}
 
 	describe("sqlite", function() {
 		after(function() {
-			fs.unlink("test.db");
+			fs.unlink("test.db" + vmid);
 		});
-		_test('sqlite:test.db');
+		_test('sqlite:test.db' + vmid);
 	});
 
 	xdescribe("mysql", function() {
@@ -106,24 +132,24 @@ describe("db", function() {
 
 		function clear_db() {
 			try {
-				fs.readdir("testdb").forEach(function(s) {
+				fs.readdir("testdb" + vmid).forEach(function(s) {
 					if (s.name != "." && s.name != "..")
-						fs.unlink("testdb/" + s.name);
+						fs.unlink("testdb" + vmid + "/" + s.name);
 				});
 
-				fs.rmdir("testdb");
+				fs.rmdir("testdb" + vmid);
 			} catch (e) {};
 		}
 
 		it('open/close', function() {
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.close();
 			clear_db();
 		});
 
 		it('set/get', function() {
 			var b = "bbbbb";
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.set("test", b);
 			assert.equal(ldb.get("test").toString(), "bbbbb");
 			ldb.close();
@@ -132,7 +158,7 @@ describe("db", function() {
 
 		it('binary Key', function() {
 			var b = "bbbbb1";
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.set("test1", b);
 			assert.equal(ldb.get("test1").toString(), "bbbbb1");
 			ldb.close();
@@ -147,7 +173,7 @@ describe("db", function() {
 				"ddd": "ddd value"
 			};
 
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.mset(data);
 			assert.equal(ldb.get("aaa").toString(), "aaa value");
 			assert.equal(ldb.get("bbb").toString(), "bbb value");
@@ -164,7 +190,7 @@ describe("db", function() {
 
 		it('remove/has', function() {
 			var b = "bbbbb";
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			assert.isNull(ldb.get("not_exists"));
 			assert.isFalse(ldb.has("not_exists"));
 			ldb.set("not_exists", b);
@@ -188,7 +214,7 @@ describe("db", function() {
 				"ddd": "ddd value"
 			};
 
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.mset(data);
 
 			ldb.remove(["bbb", "ddd"]);
@@ -205,7 +231,7 @@ describe("db", function() {
 		it('begin/commit', function() {
 			var b = "bbbbb";
 			var c = "ccccc";
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 
 			ldb.set("test", b);
 			assert.equal(ldb.get("test").toString(), "bbbbb");
@@ -226,7 +252,7 @@ describe("db", function() {
 		it('begin/close', function() {
 			var b = "bbbbb";
 			var c = "ccccc";
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 
 			ldb.set("test", b);
 			assert.equal(ldb.get("test").toString(), "bbbbb");
@@ -252,7 +278,7 @@ describe("db", function() {
 				"ddd": "ddd value"
 			};
 
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 
 			var count = 0;
 			ldb.forEach(function(v, k) {
@@ -287,7 +313,7 @@ describe("db", function() {
 				"bbb": "bbb value"
 			};
 
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.mset(data);
 
 			var count = 0;
@@ -315,7 +341,7 @@ describe("db", function() {
 				"bbb": "bbb value"
 			};
 
-			var ldb = db.openLevelDB("testdb");
+			var ldb = db.openLevelDB("testdb" + vmid);
 			ldb.mset(data);
 
 			var count = 0;

@@ -22,9 +22,12 @@
 #endif
 
 #include "encoding_iconv.h"
+#include "ifs/encoding.h"
 
 namespace fibjs
 {
+
+DECLARE_MODULE(iconv);
 
 #ifdef _WIN32
 
@@ -57,7 +60,7 @@ static iconv_t iconv_open(const char *tocode, const char *fromcode)
     return (iconv_t) - 1;
 }
 
-static int iconv_close(iconv_t cd)
+static int32_t iconv_close(iconv_t cd)
 {
     return 0;
 }
@@ -72,7 +75,7 @@ static size_t iconv(iconv_t cd, const char **inbuf, size_t *inbytesleft,
 
 static size_t (*_iconv)(iconv_t, const char **, size_t *, char **, size_t *);
 static iconv_t (*_iconv_open)(const char *, const char *);
-static int (*_iconv_close)(iconv_t);
+static int32_t (*_iconv_close)(iconv_t);
 
 inline void init_iconv()
 {
@@ -94,9 +97,9 @@ inline void init_iconv()
             if (!_iconv_open)
                 _iconv_open = (iconv_t (*)(const char *, const char *))dlsym(handle, "libiconv_open");
 
-            _iconv_close = (int (*)(iconv_t))dlsym(handle, "iconv_close");
+            _iconv_close = (int32_t (*)(iconv_t))dlsym(handle, "iconv_close");
             if (!_iconv_close)
-                _iconv_close = (int (*)(iconv_t))dlsym(handle, "libiconv_close");
+                _iconv_close = (int32_t (*)(iconv_t))dlsym(handle, "libiconv_close");
         }
 
         if (!_iconv || !_iconv_open || !_iconv_close)
@@ -158,7 +161,7 @@ result_t encoding_iconv::encode(const char *data, std::string &retVal)
             if (m_iconv_en == (iconv_t)(-1))
             {
                 m_iconv_en = NULL;
-                return CHECK_ERROR(Runtime::setError("Unknown charset."));
+                return CHECK_ERROR(Runtime::setError("encoding: Unknown charset."));
             }
         }
 
@@ -171,7 +174,7 @@ result_t encoding_iconv::encode(const char *data, std::string &retVal)
         size_t n = _iconv((iconv_t)m_iconv_en, &data, &sz, &output_buf, &output_size);
 
         if (n == (size_t) - 1)
-            return CHECK_ERROR(Runtime::setError("convert error."));
+            return CHECK_ERROR(Runtime::setError("encoding: convert error."));
 
         retVal.resize(retVal.length() - output_size);
     }
@@ -204,7 +207,7 @@ result_t encoding_iconv::decode(const std::string &data, std::string &retVal)
             if (m_iconv_de == (iconv_t)(-1))
             {
                 m_iconv_de = NULL;
-                return CHECK_ERROR(Runtime::setError("Unknown charset."));
+                return CHECK_ERROR(Runtime::setError("encoding: Unknown charset."));
             }
         }
 
@@ -219,7 +222,7 @@ result_t encoding_iconv::decode(const std::string &data, std::string &retVal)
         size_t n = _iconv((iconv_t)m_iconv_de, &ptr, &sz, &output_buf, &output_size);
 
         if (n == (size_t) - 1)
-            return CHECK_ERROR(Runtime::setError("convert error."));
+            return CHECK_ERROR(Runtime::setError("encoding: convert error."));
 
         strBuf.resize(strBuf.length() - output_size);
 
@@ -235,6 +238,18 @@ result_t encoding_iconv::decode(Buffer_base *data, std::string &retVal)
     data->toString(strData);
 
     return decode(strData, retVal);
+}
+
+result_t iconv_base::encode(const char *charset, const char *data,
+                            obj_ptr<Buffer_base> &retVal)
+{
+    return encoding_iconv(charset).encode(data, retVal);
+}
+
+result_t iconv_base::decode(const char *charset, Buffer_base *data,
+                            std::string &retVal)
+{
+    return encoding_iconv(charset).decode(data, retVal);
 }
 
 }

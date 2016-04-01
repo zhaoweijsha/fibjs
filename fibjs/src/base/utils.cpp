@@ -8,11 +8,11 @@
 namespace fibjs
 {
 
-static std::string fmtString(result_t hr, const char *str, int len = -1)
+static std::string fmtString(result_t hr, const char *str, int32_t len = -1)
 {
     std::string s;
     if (len < 0)
-        len = (int) qstrlen(str);
+        len = (int32_t) qstrlen(str);
 
     s.resize(len + 16);
     s.resize(sprintf(&s[0], "[%d] %s", hr, str));
@@ -55,11 +55,13 @@ std::string getResultMessage(result_t hr)
         // CALL_E_EMPTY
         "Collection is empty.",
         // CALL_E_PENDDING
-        "Operation now in progress.",
-        // CALL_E_NOSYNC
         "Operation not support synchronous call.",
         // CALL_E_NOASYNC
+        "Operation now in progress.",
+        // CALL_E_NOSYNC
         "Operation not support asynchronous call.",
+        // CALL_E_LONGSYNC
+        "Operation is long synchronous call.",
         // CALL_E_INTERNAL
         "Internal error.",
         // CALL_E_RETURN_TYPE
@@ -90,6 +92,10 @@ std::string getResultMessage(result_t hr)
                        NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), MsgBuf, 1024, NULL ))
     {
         std::string s = fmtString(hr, UTF8_A(MsgBuf));
+        size_t sz = s.length();
+
+        if (sz > 0 && s[sz - 1] == '\n')
+            s.resize(sz - 1);
         return s;
     }
 
@@ -101,11 +107,12 @@ std::string getResultMessage(result_t hr)
 
 v8::Local<v8::Value> ThrowResult(result_t hr)
 {
+    Isolate* isolate = Isolate::current();
     v8::Local<v8::Value> e = v8::Exception::Error(
-                                 v8::String::NewFromUtf8(isolate, getResultMessage(hr).c_str()));
-    e->ToObject()->Set(v8::String::NewFromUtf8(isolate, "number"), v8::Int32::New(isolate, -hr));
+                                 isolate->NewFromUtf8(getResultMessage(hr)));
+    e->ToObject()->Set(isolate->NewFromUtf8("number"), v8::Int32::New(isolate->m_isolate, -hr));
 
-    return isolate->ThrowException(e);
+    return isolate->m_isolate->ThrowException(e);
 }
 
 inline const char *ToCString(const v8::String::Utf8Value &value)
@@ -113,7 +120,7 @@ inline const char *ToCString(const v8::String::Utf8Value &value)
     return *value ? *value : "<string conversion failed>";
 }
 
-std::string GetException(v8::TryCatch &try_catch, result_t hr)
+std::string GetException(TryCatch &try_catch, result_t hr)
 {
     if (try_catch.HasCaught())
     {
@@ -148,15 +155,15 @@ std::string GetException(v8::TryCatch &try_catch, result_t hr)
             }
 
             strError.append(ToCString(filename));
-            int lineNumber = message->GetLineNumber();
+            int32_t lineNumber = message->GetLineNumber();
             if (lineNumber > 0)
             {
                 char numStr[32];
 
-                strError.append(":", 1);
+                strError.append(1, ':');
                 sprintf(numStr, "%d", lineNumber);
                 strError.append(numStr);
-                strError.append(":", 1);
+                strError.append(1, ':');
                 sprintf(numStr, "%d", message->GetStartColumn() + 1);
                 strError.append(numStr);
             }
@@ -170,7 +177,7 @@ std::string GetException(v8::TryCatch &try_catch, result_t hr)
     return "";
 }
 
-result_t throwSyntaxError(v8::TryCatch &try_catch)
+result_t throwSyntaxError(TryCatch &try_catch)
 {
     v8::String::Utf8Value exception(try_catch.Exception());
 
@@ -195,15 +202,15 @@ result_t throwSyntaxError(v8::TryCatch &try_catch)
         }
 
         strError.append(ToCString(filename));
-        int lineNumber = message->GetLineNumber();
+        int32_t lineNumber = message->GetLineNumber();
         if (lineNumber > 0)
         {
             char numStr[32];
 
-            strError.append(":", 1);
+            strError.append(1, ':');
             sprintf(numStr, "%d", lineNumber);
             strError.append(numStr);
-            strError.append(":", 1);
+            strError.append(1, ':');
             sprintf(numStr, "%d", message->GetStartColumn() + 1);
             strError.append(numStr);
         }
@@ -214,18 +221,18 @@ result_t throwSyntaxError(v8::TryCatch &try_catch)
     return CALL_E_JAVASCRIPT;
 }
 
-void ReportException(v8::TryCatch &try_catch, result_t hr)
+void ReportException(TryCatch &try_catch, result_t hr)
 {
     if (try_catch.HasCaught() ||  hr < 0)
         asyncLog(console_base::_ERROR, GetException(try_catch, hr));
 }
 
-std::string traceInfo()
+std::string traceInfo(int32_t deep)
 {
     v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(
-            isolate, 10, v8::StackTrace::kOverview);
-    int count = stackTrace->GetFrameCount();
-    int i;
+            Isolate::current()->m_isolate, deep, v8::StackTrace::kOverview);
+    int32_t count = stackTrace->GetFrameCount();
+    int32_t i;
     std::string strBuffer;
 
     for (i = 0; i < count; i++)
@@ -247,14 +254,14 @@ std::string traceInfo()
         if (*filename)
         {
             strBuffer.append(*filename);
-            strBuffer.append(":", 1);
+            strBuffer.append(1, ':');
         }
         else
             strBuffer.append("[eval]:", 7);
 
         sprintf(numStr, "%d", f->GetLineNumber());
         strBuffer.append(numStr);
-        strBuffer.append(":", 1);
+        strBuffer.append(1, ':');
         sprintf(numStr, "%d", f->GetColumn());
         strBuffer.append(numStr);
 

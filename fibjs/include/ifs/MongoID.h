@@ -19,7 +19,18 @@ namespace fibjs
 
 class MongoID_base : public object_base
 {
-	DECLARE_CLASS(MongoID_base);
+    DECLARE_CLASS(MongoID_base);
+
+public:
+    static void s__new(const v8::FunctionCallbackInfo<v8::Value>& args)
+    {
+        CONSTRUCT_INIT();
+
+        Isolate* isolate = Isolate::current();
+
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8("not a constructor"));
+    }
 
 public:
 
@@ -29,18 +40,18 @@ public:
 
 namespace fibjs
 {
-	inline ClassInfo& MongoID_base::class_info()
-	{
-		static ClassData s_cd = 
-		{ 
-			"MongoID", NULL, 
-			0, NULL, 0, NULL, 0, NULL, NULL, NULL,
-			&object_base::class_info()
-		};
+    inline ClassInfo& MongoID_base::class_info()
+    {
+        static ClassData s_cd = 
+        { 
+            "MongoID", s__new, NULL, 
+            0, NULL, 0, NULL, 0, NULL, NULL, NULL,
+            &object_base::class_info()
+        };
 
-		static ClassInfo s_ci(s_cd);
-		return s_ci;
-	}
+        static ClassInfo s_ci(s_cd);
+        return s_ci;
+    }
 
 
 }

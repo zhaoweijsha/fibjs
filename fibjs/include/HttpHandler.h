@@ -20,19 +20,30 @@ class HttpHandler: public HttpHandler_base
 
 public:
     HttpHandler();
-    void setHandler(Handler_base *hdlr);
 
 public:
     // object_base
     virtual result_t dispose()
     {
+        m_hdlr.dispose();
+        m_err_hdlrs[0].dispose();
+        m_err_hdlrs[1].dispose();
+        m_err_hdlrs[2].dispose();
+
         return 0;
     }
 
 public:
     // Handler_base
     virtual result_t invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                            exlib::AsyncEvent *ac);
+                            AsyncEvent *ac);
+
+public:
+    // HandlerEx_base
+    virtual result_t onerror(v8::Local<v8::Object> hdlrs);
+    virtual result_t get_handler(obj_ptr<Handler_base>& retVal);
+    virtual result_t set_handler(Handler_base* newVal);
+    virtual result_t get_stats(obj_ptr<Stats_base>& retVal);
 
 public:
     // HttpHandler_base
@@ -44,15 +55,14 @@ public:
     virtual result_t set_maxHeadersCount(int32_t newVal);
     virtual result_t get_maxUploadSize(int32_t &retVal);
     virtual result_t set_maxUploadSize(int32_t newVal);
-    virtual result_t get_handler(obj_ptr<Handler_base> &retVal);
-    virtual result_t set_handler(Handler_base *newVal);
-    virtual result_t get_stats(obj_ptr<Stats_base> &retVal);
 
 public:
     obj_ptr<Stats> m_stats;
 
 private:
     naked_ptr<Handler_base> m_hdlr;
+    naked_ptr<Handler_base> m_err_hdlrs[3];
+
     bool m_crossDomain;
     bool m_forceGZIP;
     int32_t m_maxHeadersCount;

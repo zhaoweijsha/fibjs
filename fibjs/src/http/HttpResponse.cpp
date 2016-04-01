@@ -21,153 +21,173 @@ result_t HttpResponse_base::_new(obj_ptr<HttpResponse_base> &retVal, v8::Local<v
 
 result_t HttpResponse::get_protocol(std::string &retVal)
 {
-    return m_message.get_protocol(retVal);
+    return m_message->get_protocol(retVal);
 }
 
 result_t HttpResponse::set_protocol(const char *newVal)
 {
-    return m_message.set_protocol(newVal);
+    return m_message->set_protocol(newVal);
 }
 
 result_t HttpResponse::get_headers(obj_ptr<HttpCollection_base> &retVal)
 {
-    return m_message.get_headers(retVal);
+    return m_message->get_headers(retVal);
 }
 
 result_t HttpResponse::get_body(obj_ptr<SeekableStream_base> &retVal)
 {
-    return m_message.get_body(retVal);
+    return m_message->get_body(retVal);
 }
 
 result_t HttpResponse::set_body(SeekableStream_base *newVal)
 {
-    return m_message.set_body(newVal);
+    return m_message->set_body(newVal);
 }
 
 result_t HttpResponse::read(int32_t bytes, obj_ptr<Buffer_base> &retVal,
-                            exlib::AsyncEvent *ac)
+                            AsyncEvent *ac)
 {
-    return m_message.read(bytes, retVal, ac);
+    return m_message->read(bytes, retVal, ac);
 }
 
-result_t HttpResponse::readAll(obj_ptr<Buffer_base> &retVal, exlib::AsyncEvent *ac)
+result_t HttpResponse::readAll(obj_ptr<Buffer_base> &retVal, AsyncEvent *ac)
 {
-    return m_message.readAll(retVal, ac);
+    return m_message->readAll(retVal, ac);
 }
 
-result_t HttpResponse::write(Buffer_base *data, exlib::AsyncEvent *ac)
+result_t HttpResponse::write(Buffer_base *data, AsyncEvent *ac)
 {
-    return m_message.write(data, ac);
+    return m_message->write(data, ac);
 }
 
 result_t HttpResponse::get_length(int64_t &retVal)
 {
-    return m_message.get_length(retVal);
+    return m_message->get_length(retVal);
 }
 
 result_t HttpResponse::get_keepAlive(bool &retVal)
 {
-    return m_message.get_keepAlive(retVal);
+    return m_message->get_keepAlive(retVal);
 }
 
 result_t HttpResponse::set_keepAlive(bool newVal)
 {
-    return m_message.set_keepAlive(newVal);
+    return m_message->set_keepAlive(newVal);
+}
+
+result_t HttpResponse::get_upgrade(bool &retVal)
+{
+    return m_message->get_upgrade(retVal);
+}
+
+result_t HttpResponse::set_upgrade(bool newVal)
+{
+    return m_message->set_upgrade(newVal);
 }
 
 result_t HttpResponse::get_maxHeadersCount(int32_t &retVal)
 {
-    return m_message.get_maxHeadersCount(retVal);
+    return m_message->get_maxHeadersCount(retVal);
 }
 
 result_t HttpResponse::set_maxHeadersCount(int32_t newVal)
 {
-    return m_message.set_maxHeadersCount(newVal);
+    return m_message->set_maxHeadersCount(newVal);
 }
 
 result_t HttpResponse::get_maxUploadSize(int32_t &retVal)
 {
-    return m_message.get_maxUploadSize(retVal);
+    return m_message->get_maxUploadSize(retVal);
 }
 
 result_t HttpResponse::set_maxUploadSize(int32_t newVal)
 {
-    return m_message.get_maxUploadSize(newVal);
+    return m_message->get_maxUploadSize(newVal);
 }
 
 result_t HttpResponse::hasHeader(const char *name, bool &retVal)
 {
-    return m_message.hasHeader(name, retVal);
+    return m_message->hasHeader(name, retVal);
 }
 
 result_t HttpResponse::firstHeader(const char *name, Variant &retVal)
 {
-    return m_message.firstHeader(name, retVal);
+    return m_message->firstHeader(name, retVal);
 }
 
 result_t HttpResponse::allHeader(const char *name, obj_ptr<List_base> &retVal)
 {
-    return m_message.allHeader(name, retVal);
+    return m_message->allHeader(name, retVal);
 }
 
-result_t HttpResponse::addHeader(v8::Local<v8::Object> map)
+result_t HttpResponse::addHeader(Map_base* map)
 {
-    return m_message.addHeader(map);
+    return m_message->addHeader(map);
 }
 
 result_t HttpResponse::addHeader(const char *name, Variant value)
 {
-    return m_message.addHeader(name, value);
+    return m_message->addHeader(name, value);
 }
 
-result_t HttpResponse::setHeader(v8::Local<v8::Object> map)
+result_t HttpResponse::setHeader(Map_base* map)
 {
-    return m_message.setHeader(map);
+    return m_message->setHeader(map);
 }
 
 result_t HttpResponse::setHeader(const char *name, Variant value)
 {
-    return m_message.setHeader(name, value);
+    return m_message->setHeader(name, value);
 }
 
 result_t HttpResponse::removeHeader(const char *name)
 {
-    return m_message.removeHeader(name);
+    return m_message->removeHeader(name);
 }
 
 result_t HttpResponse::get_value(std::string &retVal)
 {
-    return m_message.get_value(retVal);
+    return m_message->get_value(retVal);
 }
 
 result_t HttpResponse::set_value(const char *newVal)
 {
-    return m_message.set_value(newVal);
+    return m_message->set_value(newVal);
 }
 
 result_t HttpResponse::get_params(obj_ptr<List_base> &retVal)
 {
-    return m_message.get_params(retVal);
+    return m_message->get_params(retVal);
 }
 
 result_t HttpResponse::set_params(List_base *newVal)
 {
-    return m_message.set_params(newVal);
+    return m_message->set_params(newVal);
 }
 
 result_t HttpResponse::get_result(Variant &retVal)
 {
-    return m_message.get_result(retVal);
+    return m_message->get_result(retVal);
 }
 
 result_t HttpResponse::set_result(Variant newVal)
 {
-    return m_message.set_result(newVal);
+    return m_message->set_result(newVal);
+}
+
+result_t HttpResponse::get_lastError(std::string& retVal)
+{
+    return m_message->get_lastError(retVal);
+}
+
+result_t HttpResponse::set_lastError(const char* newVal)
+{
+    return m_message->set_lastError(newVal);
 }
 
 result_t HttpResponse::clear()
 {
-    m_message.clear();
+    m_message = new HttpMessage(true);
 
     m_cookies.Release();
     m_status = 200;
@@ -206,7 +226,7 @@ static const char *const status_lines[] =
     " 508 unused", " 509 unused", " 510 Not Extended"
 #define RESPONSE_CODES 55
 };
-static int shortcut[6] =
+static int32_t shortcut[6] =
 { LEVEL_100, LEVEL_200, LEVEL_300, LEVEL_400, LEVEL_500, RESPONSE_CODES };
 static unsigned char status_lines_size[RESPONSE_CODES];
 
@@ -215,14 +235,14 @@ static class _init_status_line
 public:
     _init_status_line()
     {
-        int i;
+        int32_t i;
 
         for (i = 0; i < RESPONSE_CODES; i++)
             status_lines_size[i] = (unsigned char) qstrlen(status_lines[i]);
     }
 } s_init_status_line;
 
-result_t HttpResponse::sendTo(Stream_base *stm, exlib::AsyncEvent *ac)
+result_t HttpResponse::sendTo(Stream_base *stm, AsyncEvent *ac)
 {
     if (!ac)
         return CHECK_ERROR(CALL_E_NOSYNC);
@@ -252,29 +272,29 @@ result_t HttpResponse::sendTo(Stream_base *stm, exlib::AsyncEvent *ac)
         m_cookies.Release();
     }
 
-    int pos = shortcut[m_status / 100 - 1] + m_status % 100;
+    int32_t pos = shortcut[m_status / 100 - 1] + m_status % 100;
     std::string strCommand;
 
     get_protocol(strCommand);
     strCommand.append(status_lines[pos], status_lines_size[pos]);
 
-    return m_message.sendTo(stm, strCommand, ac);
+    return m_message->sendTo(stm, strCommand, ac);
 }
 
-result_t HttpResponse::readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac)
+result_t HttpResponse::readFrom(Stream_base *stm, AsyncEvent *ac)
 {
-    class asyncReadFrom: public asyncState
+    class asyncReadFrom: public AsyncState
     {
     public:
         asyncReadFrom(HttpResponse *pThis, BufferedStream_base *stm,
-                      exlib::AsyncEvent *ac) :
-            asyncState(ac), m_pThis(pThis), m_stm(stm)
+                      AsyncEvent *ac) :
+            AsyncState(ac), m_pThis(pThis), m_stm(stm)
         {
             m_pThis->clear();
             set(begin);
         }
 
-        static int begin(asyncState *pState, int n)
+        static int32_t begin(AsyncState *pState, int32_t n)
         {
             asyncReadFrom *pThis = (asyncReadFrom *) pState;
 
@@ -283,7 +303,7 @@ result_t HttpResponse::readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac)
                                           pThis);
         }
 
-        static int command(asyncState *pState, int n)
+        static int32_t command(AsyncState *pState, int32_t n)
         {
             asyncReadFrom *pThis = (asyncReadFrom *) pState;
             result_t hr;
@@ -294,7 +314,7 @@ result_t HttpResponse::readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac)
                     || !qisdigit(pThis->m_strLine[11])
                     || (pThis->m_strLine.length() > 12
                         && qisdigit(pThis->m_strLine[12])))
-                return CHECK_ERROR(Runtime::setError("bad protocol: " + pThis->m_strLine));
+                return CHECK_ERROR(Runtime::setError("HttpResponse: bad protocol: " + pThis->m_strLine));
 
             pThis->m_pThis->set_status(atoi(pThis->m_strLine.c_str() + 8));
             pThis->m_strLine.resize(8);
@@ -304,7 +324,7 @@ result_t HttpResponse::readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac)
                 return hr;
 
             pThis->done();
-            return pThis->m_pThis->m_message.readFrom(pThis->m_stm, pThis);
+            return pThis->m_pThis->m_message->readFrom(pThis->m_stm, pThis);
         }
 
     public:
@@ -316,12 +336,16 @@ result_t HttpResponse::readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac)
     if (!ac)
         return CHECK_ERROR(CALL_E_NOSYNC);
 
-    return (new asyncReadFrom(this, stm, ac))->post(0);
+    obj_ptr<BufferedStream_base> _stm = BufferedStream_base::getInstance(stm);
+    if (!_stm)
+        return CHECK_ERROR(Runtime::setError("HttpResponse: only accept BufferedStream object."));
+
+    return (new asyncReadFrom(this, _stm, ac))->post(0);
 }
 
 result_t HttpResponse::get_stream(obj_ptr<Stream_base> &retVal)
 {
-    return m_message.get_stream(retVal);
+    return m_message->get_stream(retVal);
 }
 
 result_t HttpResponse::get_response(obj_ptr<Message_base> &retVal)
@@ -341,7 +365,7 @@ result_t HttpResponse::set_status(int32_t newVal)
         newVal = 500;
     else
     {
-        int n = newVal / 100;
+        int32_t n = newVal / 100;
         if (shortcut[n - 1] + newVal % 100 >= shortcut[n])
             newVal = 500;
     }
@@ -404,6 +428,45 @@ result_t HttpResponse::redirect(const char *url)
     m_status = 302;
     setHeader("Location", url);
     return 0;
+}
+
+result_t HttpResponse::sendHeader(Stream_base* stm, AsyncEvent* ac)
+{
+    if (!ac)
+        return CHECK_ERROR(CALL_E_NOSYNC);
+
+    if (m_cookies)
+    {
+        int32_t len, i;
+
+        m_cookies->get_length(len);
+
+        for (i = 0; i < len; i ++)
+        {
+            Variant v;
+            obj_ptr<object_base> cookie;
+            std::string str;
+
+            m_cookies->_indexed_getter(i, v);
+            cookie = v.object();
+
+            if (cookie)
+            {
+                cookie->toString(str);
+                addHeader("Set-Cookie", str.c_str());
+            }
+        }
+
+        m_cookies.Release();
+    }
+
+    int32_t pos = shortcut[m_status / 100 - 1] + m_status % 100;
+    std::string strCommand;
+
+    get_protocol(strCommand);
+    strCommand.append(status_lines[pos], status_lines_size[pos]);
+
+    return m_message->sendHeader(stm, strCommand, ac);
 }
 
 } /* namespace fibjs */

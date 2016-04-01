@@ -81,18 +81,18 @@ result_t SslHandler::init(X509Cert_base *crt, PKey_base *key, v8::Local<v8::Valu
 }
 
 result_t SslHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                            exlib::AsyncEvent *ac)
+                            AsyncEvent *ac)
 {
-    class asyncInvoke: public asyncState
+    class asyncInvoke: public AsyncState
     {
     public:
-        asyncInvoke(SslHandler *pThis, Stream_base *stm, exlib::AsyncEvent *ac) :
-            asyncState(ac), m_pThis(pThis), m_stm(stm)
+        asyncInvoke(SslHandler *pThis, Stream_base *stm, AsyncEvent *ac) :
+            AsyncState(ac), m_pThis(pThis), m_stm(stm)
         {
             set(accept);
         }
 
-        static int accept(asyncState *pState, int n)
+        static int32_t accept(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -100,7 +100,7 @@ result_t SslHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_pThis->m_socket->accept(pThis->m_stm, pThis->m_socket, pThis);
         }
 
-        static int invoke(asyncState *pState, int n)
+        static int32_t invoke(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -108,7 +108,7 @@ result_t SslHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return mq_base::invoke(pThis->m_pThis->m_hdlr, pThis->m_socket, pThis);
         }
 
-        static int close(asyncState *pState, int n)
+        static int32_t close(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
 
@@ -116,7 +116,7 @@ result_t SslHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return pThis->m_socket->close(pThis);
         }
 
-        static int exit(asyncState *pState, int n)
+        static int32_t exit(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
             return pThis->done(CALL_RETURN_NULL);
@@ -161,8 +161,14 @@ result_t SslHandler::get_handler(obj_ptr<Handler_base> &retVal)
 
 result_t SslHandler::set_handler(Handler_base *newVal)
 {
-    wrap()->SetHiddenValue(v8::String::NewFromUtf8(isolate, "handler"), newVal->wrap());
+    obj_ptr<Handler_base> hdlr = (Handler_base*)m_hdlr;
+
+    wrap()->SetHiddenValue(holder()->NewFromUtf8("handler"), newVal->wrap());
     m_hdlr = newVal;
+
+    if (hdlr)
+        hdlr->dispose();
+
     return 0;
 }
 

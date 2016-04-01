@@ -1,5 +1,4 @@
 /*! @page start_prog 开始写代码
-@tableofcontents
 @section program_sec 开始写代码
 
 @subsection prg_step1 第一步：Hello, World!
@@ -57,7 +56,7 @@ function dang(n){
 }
 
 for(var i = 0; i < 5; i ++)
-  dang.start(i);
+  coroutine.start(dang,i);
 
 while(true)
   coroutine.sleep(1000);
@@ -91,7 +90,7 @@ function dang(n){
 }
 
 for(var i = 0; i < 5; i ++){
-  dang.start(i);
+  coroutine.start(dang,i);
   coroutine.sleep(200);
 }
 
@@ -129,9 +128,9 @@ var coroutine = require("coroutine");
 function func(){
   ...
 
-  (function(){
+  coroutine.start(function(){
     ...
-  }).start();
+  });
 
   ...
 }

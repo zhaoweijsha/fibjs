@@ -18,16 +18,13 @@ namespace fibjs
 class DBResult: public DBResult_base
 {
 public:
-    DBResult(int64_t affected, int64_t insertId) :
-        m_size(0), m_affected(affected), m_insertId(insertId)
+    DBResult(int32_t sz, int64_t affected = 0, int64_t insertId = 0) :
+        m_size(sz), m_affected(affected), m_insertId(insertId)
     {
-        extMemory(1024);
-    }
+        m_array = new List();
 
-    DBResult(int32_t sz) :
-        m_size(sz), m_affected(0), m_insertId(0)
-    {
-        m_fields = new DBField(sz);
+        if (sz)
+            m_fields = new DBField(sz);
     }
 
 public:
@@ -38,10 +35,12 @@ public:
     // ObjectArray_base
     virtual result_t _indexed_getter(uint32_t index, Variant &retVal);
     virtual result_t _indexed_setter(uint32_t index, Variant newVal);
+    virtual result_t freeze();
     virtual result_t get_length(int32_t &retVal);
     virtual result_t resize(int32_t sz);
     virtual result_t push(Variant v);
     virtual result_t push(const v8::FunctionCallbackInfo<v8::Value> &args);
+    virtual result_t pushArray(v8::Local<v8::Array> data);
     virtual result_t pop(Variant &retVal);
     virtual result_t slice(int32_t start, int32_t end, obj_ptr<List_base> &retVal);
     virtual result_t concat(const v8::FunctionCallbackInfo<v8::Value> &args, obj_ptr<List_base> &retVal);
@@ -71,18 +70,18 @@ public:
 
     void endRow()
     {
-        m_array.append(m_nowRow);
+        m_array->append(m_nowRow);
         m_nowRow.Release();
     }
 
     void rowValue(int32_t i, Variant &v)
     {
         m_nowRow->setValue(i, v);
-        extMemory((int)v.size());
+        extMemory((int32_t)v.size());
     }
 
 private:
-    List::array m_array;
+    obj_ptr<List> m_array;
     int32_t m_size;
     int64_t m_affected;
     int64_t m_insertId;

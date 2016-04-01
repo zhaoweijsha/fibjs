@@ -6,23 +6,31 @@ var os = require('os');
 
 describe("collection", function() {
 	describe('List', function() {
-		var a = new collection.List();
-
 		function isBigEnough(element, index) {
 			return (element >= 10);
 		}
 
+		it("create by array", function() {
+			var a = new collection.List([1, 2, 3]);
+			assert.deepEqual(a.toArray(), [1, 2, 3]);
+		});
+
+
 		it("pop empty list", function() {
+			var a = new collection.List();
 			assert.equal(a.pop(), null);
 		});
 
 		it("resize", function() {
+			var a = new collection.List();
 			a.resize(256);
 			assert.equal(a.length, 256);
 			assert.isUndefined(a[0]);
 		});
 
 		it("index", function() {
+			var a = new collection.List();
+			a.resize(256);
 			for (var i = 0; i < 256; i++) {
 				a[i] = 256 - i;
 				assert.equal(a[i], 256 - i);
@@ -31,6 +39,7 @@ describe("collection", function() {
 		});
 
 		it("Memory Leak detect", function() {
+			var a = new collection.List();
 			GC();
 			var no1 = os.memoryUsage().nativeObjects.objects;
 			a.push(new Buffer());
@@ -46,27 +55,38 @@ describe("collection", function() {
 		});
 
 		it("toArray", function() {
+			var a = new collection.List();
 			a.push(1);
 			assert.deepEqual(a.toArray(), [1]);
 		});
 
 		it("push", function() {
+			var a = new collection.List([1]);
 			a.push(2, 3, 4);
 			assert.deepEqual(a.toArray(), [1, 2, 3, 4]);
 		});
 
+		it("pushArray", function() {
+			var a = new collection.List([1]);
+			a.pushArray([2, 3, 4]);
+			assert.deepEqual(a.toArray(), [1, 2, 3, 4]);
+		});
+
 		it("pop", function() {
+			var a = new collection.List([1, 2, 3, 4]);
 			assert.equal(a.pop(), 4);
 			assert.equal(a.length, 3);
 		});
 
 		it("slice", function() {
+			var a = new collection.List([1, 2, 3]);
 			assert.deepEqual(a.slice(1).toArray(), [2, 3]);
 			assert.deepEqual(a.slice(1, 2).toArray(), [2]);
 			assert.deepEqual(a.slice(1, 0).toArray(), []);
 		});
 
 		it("concat", function() {
+			var a = new collection.List([1, 2, 3]);
 			assert.deepEqual(a.concat(a).toArray(), [1, 2, 3, 1, 2, 3]);
 			assert.deepEqual(a.concat(new collection.List()).toArray(), [1, 2,
 				3
@@ -120,6 +140,33 @@ describe("collection", function() {
 				assert.equal(passed[i], v);
 			});
 		});
+
+		it("freeze", function() {
+			var passed = new collection.List();
+			passed.push(1, 4, 9);
+			passed.freeze();
+
+			assert.throws(function() {
+				passed[0] = 100;
+			});
+
+			assert.throws(function() {
+				passed.resize(10);
+			});
+
+			assert.throws(function() {
+				passed.push(10);
+			});
+
+			assert.throws(function() {
+				passed.pop();
+			});
+
+			assert.throws(function() {
+				passed.concat([4, 5, 6]);
+			});
+		});
+
 	});
 
 	describe("Queue", function() {
@@ -221,4 +268,4 @@ describe("collection", function() {
 	});
 });
 
-//test.run(console.DEBUG);
+// test.run(console.DEBUG);

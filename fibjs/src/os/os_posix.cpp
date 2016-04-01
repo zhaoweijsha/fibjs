@@ -39,6 +39,12 @@ result_t os_base::get_version(std::string &retVal)
     return 0;
 }
 
+result_t os_base::get_EOL(std::string& retVal)
+{
+    retVal.assign("\n", 1);
+    return 0;
+}
+
 result_t os_base::networkInfo(v8::Local<v8::Object> &retVal)
 {
     struct ::ifaddrs *addrs, *ent;
@@ -49,7 +55,9 @@ result_t os_base::networkInfo(v8::Local<v8::Object> &retVal)
     if (getifaddrs(&addrs) != 0)
         return CHECK_ERROR(LastError());
 
-    retVal = v8::Object::New(isolate);
+    Isolate* isolate = Isolate::current();
+
+    retVal = v8::Object::New(isolate->m_isolate);
 
     for (ent = addrs; ent != NULL; ent = ent->ifa_next)
     {
@@ -68,14 +76,14 @@ result_t os_base::networkInfo(v8::Local<v8::Object> &retVal)
                 && ent->ifa_addr->sa_family != AF_INET)
             continue;
 
-        name = v8::String::NewFromUtf8(isolate, ent->ifa_name);
+        name = isolate->NewFromUtf8(ent->ifa_name);
         if (retVal->Has(name))
         {
             ret = v8::Local<v8::Array>::Cast(retVal->Get(name));
         }
         else
         {
-            ret = v8::Array::New(isolate);
+            ret = v8::Array::New(isolate->m_isolate);
             retVal->Set(name, ret);
         }
 
@@ -83,20 +91,20 @@ result_t os_base::networkInfo(v8::Local<v8::Object> &retVal)
         {
             in6 = (struct sockaddr_in6 *) ent->ifa_addr;
             inet_ntop(AF_INET6, &(in6->sin6_addr), ip, INET6_ADDRSTRLEN);
-            family = v8::String::NewFromUtf8(isolate, "IPv6");
+            family = isolate->NewFromUtf8("IPv6");
         }
         else if (ent->ifa_addr->sa_family == AF_INET)
         {
             in4 = (struct sockaddr_in *) ent->ifa_addr;
             inet_ntop(AF_INET, &(in4->sin_addr), ip, INET6_ADDRSTRLEN);
-            family = v8::String::NewFromUtf8(isolate, "IPv4");
+            family = isolate->NewFromUtf8("IPv4");
         }
 
-        o = v8::Object::New(isolate);
-        o->Set(v8::String::NewFromUtf8(isolate, "address"), v8::String::NewFromUtf8(isolate, ip));
-        o->Set(v8::String::NewFromUtf8(isolate, "family"), family);
-        o->Set(v8::String::NewFromUtf8(isolate, "internal"),
-               ent->ifa_flags & IFF_LOOPBACK ? v8::True(isolate) : v8::False(isolate));
+        o = v8::Object::New(isolate->m_isolate);
+        o->Set(isolate->NewFromUtf8("address"), isolate->NewFromUtf8(ip));
+        o->Set(isolate->NewFromUtf8("family"), family);
+        o->Set(isolate->NewFromUtf8("internal"),
+               ent->ifa_flags & IFF_LOOPBACK ? v8::True(isolate->m_isolate) : v8::False(isolate->m_isolate));
 
         ret->Set(ret->Length(), o);
     }

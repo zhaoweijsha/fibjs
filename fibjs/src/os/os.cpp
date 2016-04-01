@@ -15,6 +15,8 @@
 namespace fibjs
 {
 
+DECLARE_MODULE(os);
+
 result_t os_base::get_hostname(std::string &retVal)
 {
     char s[255];
@@ -71,7 +73,7 @@ result_t os_base::dateAdd(date_t d, int32_t num, const char *part, date_t &retVa
 
 result_t os_base::get_timezone(int32_t &retVal)
 {
-    retVal = Runtime::now().m_pDateCache->LocalOffset();
+    retVal = date_t::timezone();
     return 0;
 }
 

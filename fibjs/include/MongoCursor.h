@@ -24,12 +24,12 @@ public:
 public:
     virtual void enter()
     {
-        m_db->enter();
+        m_cursor->m_db->enter();
     }
 
     virtual void leave()
     {
-        m_db->leave();
+        m_cursor->m_db->leave();
     }
 
 public:
@@ -55,11 +55,32 @@ private:
     result_t _addSpecial(const char *name, v8::Local<v8::Value> opts,
                          obj_ptr<MongoCursor_base> &retVal);
 
+    result_t _initCursor(MongoDB *db, AsyncEvent *ac);
+    ASYNC_MEMBER1(MongoCursor, _initCursor, MongoDB *);
+
+    result_t _nextCursor(int32_t &retVal, AsyncEvent *ac);
+    ASYNC_MEMBERVALUE1(MongoCursor, _nextCursor, int32_t);
+
+    result_t _bsonCursor(bson &out, AsyncEvent *ac);
+    ASYNC_MEMBERVALUE1(MongoCursor, _bsonCursor, bson);
+
+    result_t _limitCursor(int32_t size, AsyncEvent *ac);
+    ASYNC_MEMBER1(MongoCursor, _limitCursor, int32_t);
+
+    result_t _skipCursor(int32_t num, AsyncEvent *ac);
+    ASYNC_MEMBER1(MongoCursor, _skipCursor, int32_t);
+
+public:
+    class cursor : public mongo_cursor
+    {
+    public:
+        obj_ptr<MongoDB> m_db;
+    };
+
 private:
-    obj_ptr<MongoDB> m_db;
     std::string m_ns;
     std::string m_name;
-    mongo_cursor m_cursor;
+    cursor* m_cursor;
     bson m_bbq, m_bbp;
     bool m_bInit;
     bool m_bSpecial;

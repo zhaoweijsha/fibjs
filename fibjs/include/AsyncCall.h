@@ -2,33 +2,46 @@
 #define _fj_ASYNCCALL_H
 
 #include <string>
-#include <exlib/include/thread.h>
+#include <exlib/include/fiber.h>
+#include "utils.h"
+#include "Runtime.h"
 
 namespace fibjs
 {
 
-class BlockedAsyncQueue: public exlib::AsyncQueue
+class AsyncEvent: public exlib::linkitem
 {
 public:
-    void put(exlib::AsyncEvent *o)
+    virtual ~AsyncEvent()
+    {}
+
+public:
+    void sync(Isolate* isolate)
     {
-        exlib::AsyncQueue::put(o);
-        m_sem.Post();
+        isolate->m_jobs.put(this);
     }
 
-    exlib::AsyncEvent *wait()
+    virtual void js_invoke()
     {
-        m_sem.Wait();
-        return exlib::AsyncQueue::get();
     }
 
-private:
-    exlib::OSSemaphore m_sem;
+    void async(bool bLongSync);
+    virtual void invoke()
+    {
+    }
+
+    virtual int32_t post(int32_t v)
+    {
+        return 0;
+    }
+
+    virtual void apost(int32_t v)
+    {
+        post(v);
+    }
 };
 
-extern BlockedAsyncQueue s_acPool;
-
-class AsyncCall: public asyncEvent
+class AsyncCall: public AsyncEvent
 {
 public:
     AsyncCall(void **a) :
@@ -36,63 +49,103 @@ public:
     {
     }
 
-    virtual int post(int v)
+    virtual int32_t post(int32_t v)
     {
         if (v == CALL_E_EXCEPTION)
             m_error = Runtime::errMessage();
 
-        return asyncEvent::post(v);
+        m_v = v;
+        weak.set();
+
+        return 0;
     }
 
-    int wait()
+    int32_t wait()
     {
-        int r;
-
-        if (isSet())
-            r = result();
-        else
+        if (!weak.isSet())
         {
-            v8::Unlocker unlocker(isolate);
-            r = asyncEvent::wait();
+            Isolate::rt _rt;
+            weak.wait();
         }
 
-        if (r == CALL_E_EXCEPTION)
+        if (m_v == CALL_E_EXCEPTION)
             Runtime::setError(m_error);
 
-        return r;
+        return m_v;
     }
 
-public:
+protected:
+    exlib::Event weak;
     void **args;
+
+private:
     std::string m_error;
+    int32_t m_v;
 };
 
-class asyncState: public asyncCallBack
+class CAsyncCall: public AsyncEvent
 {
 public:
-    asyncState(exlib::AsyncEvent *ac) :
+    CAsyncCall(void **a) :
+        args(a)
+    {
+    }
+
+    virtual int32_t post(int32_t v)
+    {
+        if (v == CALL_E_EXCEPTION)
+            m_error = Runtime::errMessage();
+
+        m_v = v;
+        weak.set();
+
+        return 0;
+    }
+
+    int32_t wait()
+    {
+        weak.wait();
+        if (m_v == CALL_E_EXCEPTION)
+            Runtime::setError(m_error);
+
+        return m_v;
+    }
+
+protected:
+    exlib::Event weak;
+    void **args;
+
+private:
+    std::string m_error;
+    int32_t m_v;
+};
+
+class AsyncState: public AsyncEvent
+{
+public:
+    AsyncState(AsyncEvent *ac) :
         m_ac(ac), m_bAsyncState(false), m_state(NULL)
     {
     }
 
 public:
-    void set(int (*fn)(asyncState *, int))
+    void set(int32_t (*fn)(AsyncState *, int32_t))
     {
         m_state = fn;
     }
 
-    bool is(int (*fn)(asyncState *, int))
+    bool is(int32_t (*fn)(AsyncState *, int32_t))
     {
         return m_state == fn;
     }
 
-    int done(int v = 0)
+    int32_t done(int32_t v = 0)
     {
         m_state = NULL;
         return v;
     }
 
-    virtual int post(int v)
+    virtual int32_t post(int32_t v)
     {
         result_t hr = v;
         bool bAsyncState = m_bAsyncState;
@@ -123,28 +176,63 @@ public:
 
     virtual void invoke()
     {
-        post(m_av);
+        post(m_v);
     }
 
-    virtual int apost(int v)
+    virtual void apost(int32_t v)
     {
-        m_av = v;
-
-        s_acPool.put(this);
-        return 0;
+        m_v = v;
+        async(false);
     }
 
-    virtual int error(int v)
+    virtual int32_t error(int32_t v)
     {
         return v;
     }
 
 private:
-    exlib::AsyncEvent *m_ac;
+    AsyncEvent *m_ac;
     bool m_bAsyncState;
-    int m_av;
-    int (*m_state)(asyncState *, int);
+    int32_t m_v;
+    int32_t (*m_state)(AsyncState *, int32_t);
 };
+
+template<typename T, typename T1>
+class AsyncFunc: public AsyncEvent
+{
+public:
+    AsyncFunc(T func, T1 v) :
+        m_func(func), m_v(v)
+    {
+    }
+
+    virtual void invoke()
+    {
+        m_func(m_v);
+        delete this;
+    }
+
+    virtual void js_invoke()
+    {
+        invoke();
+    }
+
+private:
+    T m_func;
+    T1 m_v;
+};
+
+template<typename T, typename T1>
+void asyncCall(T func, T1 v)
+{
+    (new AsyncFunc<T, T1>(func, v))->async(false);
+}
+
+template<typename T, typename T1>
+void syncCall(Isolate* isolate, T func, T1 v)
+{
+    (new AsyncFunc<T, T1>(func, v))->sync(isolate);
+}
 
 }
 

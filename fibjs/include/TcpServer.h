@@ -28,14 +28,16 @@ public:
     // object_base
     virtual result_t dispose()
     {
+        m_hdlr.dispose();
+
         return 0;
     }
 
 public:
     // TcpServer_base
-    virtual result_t run(exlib::AsyncEvent *ac);
+    virtual result_t run(AsyncEvent *ac);
     virtual result_t asyncRun();
-    virtual result_t stop(exlib::AsyncEvent *ac);
+    virtual result_t stop(AsyncEvent *ac);
     virtual result_t get_socket(obj_ptr<Socket_base> &retVal);
     virtual result_t get_handler(obj_ptr<Handler_base> &retVal);
     virtual result_t set_handler(Handler_base *newVal);

@@ -26,11 +26,8 @@ module gd
     /*! @brief 图像格式常量，标示当前图像来源为 bmp 格式数据 */
     const Integer BMP = 5;
 
-    /*! @brief 图像格式常量，标示当前图像来源为 gd 格式数据 */
-    const Integer GD = 6;
-
-    /*! @brief 图像格式常量，标示当前图像来源为 gd2 格式数据 */
-    const Integer GD2 = 7;
+    /*! @brief 图像格式常量，标示当前图像来源为 webp 格式数据 */
+    const Integer WEBP = 6;
 
     /*! @brief 图像类型常量，标示当前图像为真彩色图像 */
     const Integer TRUECOLOR = 0;
@@ -64,6 +61,39 @@ module gd
 
     /*! @brief 旋转方向，向右旋转 */
     const Integer RIGHT = 2;
+
+    /*! @brief 滤波器类型：用平均移除法来达到轮廓效果*/
+    const Integer MEAN_REMOVAL = 0;
+
+    /*! @brief 滤波器类型：用边缘检测来突出图像的边缘 */
+    const Integer EDGEDETECT = 1;
+
+    /*! @brief 滤波器类型：使图像浮雕化 */
+    const Integer EMBOSS = 2;
+
+    /*! @brief 滤波器类型：模糊图像 */
+    const Integer SELECTIVE_BLUR = 3;
+
+    /*! @brief 滤波器类型：用高斯算法模糊图像 */
+    const Integer GAUSSIAN_BLUR = 4;
+
+    /*! @brief 滤波器类型：将图像中所有颜色反转 */
+    const Integer NEGATE = 5;
+
+    /*! @brief 滤波器类型：将图像转换为灰度图 */
+    const Integer GRAYSCALE = 6;
+
+    /*! @brief 滤波器类型：使图像更柔滑，用arg1设定柔滑级别 */
+    const Integer SMOOTH = 7;
+
+    /*! @brief 滤波器类型：改变图像的亮度，用arg1设定亮度级别，取值范围是-255~255 */
+    const Integer BRIGHTNESS = 8;
+
+    /*! @brief 滤波器类型：改变图像的对比度，用arg1设定对比度级别，取值范围是0~100 */
+    const Integer CONTRAST = 9;
+
+    /*! @brief 滤波器类型：改变图像的色调，用arg1、arg2、arg3分别指定red、blue、green，每种颜色范围是0~255，arg4为透明度，取值返回是0~127 */
+    const Integer COLORIZE = 10;
 
 
     /*! @brief 创建一个新图像
@@ -125,6 +155,23 @@ module gd
      @return 返回组合颜色
      */
     static Integer hsla(Number hue, Number saturation, Number lightness, Number alpha);
+
+    /*! @brief 通过 hsl 颜色分量生成组合颜色
+     @param hue 色相分量，范围为 0-360
+     @param saturation 饱和度分量，范围为 0.0-1.0
+     @param brightness 明亮程度分量，范围为 0.0-1.0
+     @return 返回组合颜色
+     */
+    static Integer hsb(Number hue, Number saturation, Number brightness);
+
+    /*! @brief 通过 hsl 颜色分量生成组合颜色
+     @param hue 色相分量，范围为 0-360
+     @param saturation 饱和度分量，范围为 0.0-1.0
+     @param brightness 明亮程度分量，范围为 0.0-1.0
+     @param alpha 透明分量，范围为 0.0-1.0
+     @return 返回组合颜色
+     */
+    static Integer hsba(Number hue, Number saturation, Number brightness, Number alpha);
 
     /*! @brief 通过字符串生成组合颜色
      @param color 指定颜色的字符串，如："#ff0000", "ff0000", "#f00", "f00"

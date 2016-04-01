@@ -4,6 +4,8 @@ test.setup();
 var gd = require('gd');
 var fs = require('fs');
 
+var vmid = require('coroutine').vmid;
+
 describe("gd", function() {
 	var img = gd.create(440, 240);
 
@@ -14,10 +16,10 @@ describe("gd", function() {
 	var b = img.colorAllocate(0, 0, 255);
 
 	function gd_test(fmt) {
-		img.save('test.pic', fmt);
-		var img1 = gd.load('test.pic');
+		img.save('test.pic' + vmid, fmt);
+		var img1 = gd.load('test.pic' + vmid);
 
-		fs.unlink('test.pic');
+		fs.unlink('test.pic' + vmid);
 
 		img1 = gd.load(img.getData(fmt));
 
@@ -26,12 +28,22 @@ describe("gd", function() {
 		assert.equal(img1.format, fmt);
 	}
 
+	function sample_test(img, colors) {
+		var points = [
+			[30, 32],
+			[366, 120],
+			[364, 183]
+		]
+		for (var i = 0; i < points.length; i++)
+			assert.equal(img.getTrueColorPixel(points[i][0], points[i][1]), colors[i]);
+	}
+
 	it("rgb color", function() {
 		assert.equal(gd.rgb(255, 0, 0), 0xff0000);
 		assert.equal(gd.rgb(0, 255, 0), 0x00ff00);
 		assert.equal(gd.rgb(0, 0, 255), 0x0000ff);
 
-		assert.equal(gd.rgba(0, 255, 0, .5), 0x3f00ff00);
+		assert.equal(gd.rgba(0, 255, 0, .5), 0x4000ff00);
 	});
 
 	it("hsl color", function() {
@@ -42,7 +54,18 @@ describe("gd", function() {
 		assert.equal(gd.hsl(0, 0, .8), 0xcccccc);
 		assert.equal(gd.hsl(210, .5, .6), 0x6699cc);
 
-		assert.equal(gd.hsla(120, 1, .5, .5), 0x3f00ff00);
+		assert.equal(gd.hsla(120, 1, .5, .5), 0x4000ff00);
+	});
+
+	it("hsb color", function() {
+		assert.equal(gd.hsb(0, 1, .5), 0x800000);
+		assert.equal(gd.hsb(120, 1, .5), 0x8000);
+		assert.equal(gd.hsb(240, 1, .5), 0x000080);
+
+		assert.equal(gd.hsb(0, 0, .8), 0xcccccc);
+		assert.equal(gd.hsb(210, .5, .6), 0x264d99);
+
+		assert.equal(gd.hsba(120, 1, .5, .5), 0x40008000);
 	});
 
 	it("color string", function() {
@@ -152,18 +175,91 @@ describe("gd", function() {
 		gd_test(gd.BMP);
 	});
 
-	it("gd", function() {
-		gd_test(gd.GD);
-	});
-
-	it("gd2", function() {
-		gd_test(gd.GD2);
+	it("webp", function() {
+		gd_test(gd.WEBP);
 	});
 
 	it("flip", function() {
 		var img1 = img.resample(220, 120);
 		img1.flip();
 	});
+
+	it("progressive", function() {
+		var img = gd.create(100, 100);
+
+		var data = img.getData(gd.JPEG);
+		var img1 = gd.load(data);
+
+		assert.equal(img1.format, gd.JPEG);
+		assert.equal(img1.progressive, false);
+
+		img.progressive = true;
+		var data1 = img.getData(gd.JPEG);
+		var img2 = gd.load(data1);
+
+		assert.equal(img2.format, gd.JPEG);
+		assert.equal(img2.progressive, true);
+	});
+
+	it("filter", function() {
+		img = gd.load('test.png');
+		img.filter(gd.MEAN_REMOVAL);
+		sample_test(img, [0xffffff, 0xff00, 0xffffff])
+
+		img = gd.load('test.png');
+		img.filter(gd.EDGEDETECT);
+		sample_test(img, [0x7fffff, 0x7f00, 0xff7fff])
+
+		var img = gd.load('test.png');
+		img.filter(gd.EMBOSS);
+		sample_test(img, [0x7fffff, 0xff7fff, 0x7f00])
+
+		img = gd.load('test.png');
+		img.filter(gd.SELECTIVE_BLUR);
+		sample_test(img, [0xfefdfd, 0xfe00, 0xd4fed4])
+
+		img = gd.load('test.png');
+		img.filter(gd.GAUSSIAN_BLUR);
+		sample_test(img, [0xffe9e9, 0x3dff3d, 0xa6ffa6])
+
+		img = gd.load('test.png');
+		img.filter(gd.NEGATE);
+		sample_test(img, [0x0, 0xff00ff, 0x2a002a])
+
+		img = gd.load('test.png');
+		img.filter(gd.GRAYSCALE);
+		sample_test(img, [0xffffff, 0x959595, 0xededed])
+
+		img = gd.load('test.png');
+		img.filter(gd.SMOOTH, 10);
+		sample_test(img, [0xffefef, 0x25ff25, 0xb8ffb8])
+
+		img = gd.load('test.png');
+		img.filter(gd.BRIGHTNESS, 10);
+		sample_test(img, [0xffffff, 0xaff0a, 0xdfffdf])
+
+		img = gd.load('test.png');
+		img.filter(gd.CONTRAST, 10);
+		sample_test(img, [0xe6e6e6, 0x18e618, 0xc4e6c4])
+
+		img = gd.load('test.png');
+		img.filter(gd.COLORIZE, 10, 10, 10, 10);
+		sample_test(img, [0xffffff, 0x9ff09, 0xdeffde])
+	});
+
+	it("affine", function() {
+		var img = gd.load('test.png');
+		var affines = [2, 1, 1, 2, 1, 1];
+		var img1 = img.affine(affines);
+		assert.equal(img1.width, 1115);
+		assert.equal(img1.height, 1125);
+		sample_test(img1, [0xffffff, 0x7efefefe, 0xfefefe]);
+
+		var img2 = img.affine(affines, 50, 50, 50, 50);
+		assert.equal(img2.width, 149);
+		assert.equal(img2.height, 150);
+		sample_test(img2, [0xff0000, 0x0, 0x0]);
+	});
 });
 
-//test.run(console.DEBUG);
+// test.run(console.DEBUG);

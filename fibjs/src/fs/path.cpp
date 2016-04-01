@@ -5,36 +5,22 @@
  *      Author: lion
  */
 
-#include "ifs/path.h"
 #include "ifs/process.h"
 #include "utf8.h"
 #include <sstream>
+#include "path.h"
 
 namespace fibjs
 {
 
-#ifdef _WIN32
-
-#define pathcmpchr qchricmp
-#define pathcmp qstricmp
-
-#else
-
-#define pathcmp qstrcmp
-
-inline bool pathcmpchr(char ch1, char ch2)
-{
-    return ch1 - ch2;
-}
-
-#endif
+DECLARE_MODULE(path);
 
 result_t path_base::basename(const char *path, const char *ext,
                              std::string &retVal)
 {
     char ch;
     const char *p1 = path;
-    int extlen = (int)qstrlen(ext);
+    int32_t extlen = (int32_t)qstrlen(ext);
 
     while (*path)
     {
@@ -43,11 +29,11 @@ result_t path_base::basename(const char *path, const char *ext,
             p1 = path;
     }
 
-    if (extlen && ((int) (path - p1) >= extlen)
+    if (extlen && ((int32_t) (path - p1) >= extlen)
             && !pathcmp(ext, path - extlen, extlen))
         path -= extlen;
 
-    retVal.assign(p1, (int) (path - p1));
+    retVal.assign(p1, (int32_t) (path - p1));
 
     return 0;
 }
@@ -74,7 +60,7 @@ result_t path_base::extname(const char *path, std::string &retVal)
     }
 
     if (p1)
-        retVal.assign(p1, (int) (path - p1));
+        retVal.assign(p1, (int32_t) (path - p1));
 
     return 0;
 }
@@ -127,7 +113,7 @@ result_t path_base::dirname(const char *path, std::string &retVal)
     if (isPathSlash(*p2) && p2 == p1)
         p2++;
 
-    retVal.assign(p1, (int) (p2 - p1));
+    retVal.assign(p1, (int32_t) (p2 - p1));
 
     return 0;
 }
@@ -142,8 +128,8 @@ result_t path_base::normalize(const char *path, std::string &retVal)
     std::string str;
     const char *p1 = path;
     char *pstr;
-    int pos = 0;
-    int root = 0;
+    int32_t pos = 0;
+    int32_t root = 0;
     bool bRoot = false;
 
     str.resize(qstrlen(p1));
@@ -261,66 +247,13 @@ result_t path_base::normalize(const char *path, std::string &retVal)
 result_t path_base::join(const v8::FunctionCallbackInfo<v8::Value> &args, std::string &retVal)
 {
     std::string strBuffer;
-    int argc = args.Length();
-    int i;
-    bool bRoot;
-
-#ifdef _WIN32
-    char diskID = 0;
-#endif
+    int32_t argc = args.Length();
+    int32_t i;
 
     for (i = 0; i < argc; i++)
     {
         v8::String::Utf8Value s(args[i]);
-        const char *p = *s;
-
-        if (p && *p)
-        {
-#ifdef _WIN32
-            if (p[0] != 0 && p[1] == ':')
-            {
-                if (!pathcmpchr(p[0], diskID) && !isPathSlash(p[2]))
-                {
-                    p += 2;
-                    bRoot = false;
-                }
-                else
-                {
-                    bRoot = true;
-                    diskID = p[0];
-                }
-            }
-            else if (isPathSlash(p[0]) && isPathSlash(p[1]))
-            {
-                bRoot = true;
-                diskID = 0;
-            }
-            else
-#endif
-                if (isPathSlash(p[0]))
-                {
-                    bRoot = true;
-#ifdef _WIN32
-                    diskID = 0;
-#endif
-                }
-                else
-                    bRoot = false;
-
-            if (bRoot)
-                strBuffer.clear();
-
-            strBuffer.append(p);
-
-            if (i < argc - 1 && !isPathSlash(p[s.length() - 1]))
-                strBuffer.append(1, PATH_SLASH);
-        }
-        else
-        {
-            strBuffer.append(1, '.');
-            if (i < argc - 1)
-                strBuffer.append(1, PATH_SLASH);
-        }
+        pathAdd(strBuffer, *s);
     }
 
     return normalize(strBuffer.c_str(), retVal);

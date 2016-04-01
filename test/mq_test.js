@@ -4,6 +4,8 @@ test.setup();
 var mq = require('mq');
 var net = require('net');
 var io = require('io');
+var os = require('os');
+var coroutine = require('coroutine');
 
 var m = new mq.Message();
 var v = new Buffer('abcd');
@@ -25,6 +27,14 @@ function hdlr3(v) {
 describe("mq", function() {
 	it("create Message", function() {
 		var m = new mq.Message();
+	});
+
+	var ss = [];
+
+	after(function() {
+		ss.forEach(function(s) {
+			s.close();
+		});
 	});
 
 	describe("function handler", function() {
@@ -185,6 +195,24 @@ describe("mq", function() {
 			req.params.push("aaasssssssssssssss");
 			mq.invoke(handler, req);
 		});
+
+		it("memory leak", function() {
+			var svr = new net.TcpServer(8888, function() {});
+			ss.push(svr.socket);
+
+			GC();
+			var no1 = os.memoryUsage().nativeObjects.objects;
+
+			svr.handler = new mq.Chain([function(v) {}, function(v) {}]);
+
+			GC();
+			assert.equal(no1 + 2, os.memoryUsage().nativeObjects.objects);
+
+			svr.handler = mq.jsHandler(function(v) {});
+
+			GC();
+			assert.equal(no1, os.memoryUsage().nativeObjects.objects);
+		});
 	});
 
 	describe("routing handler", function() {
@@ -242,6 +270,10 @@ describe("mq", function() {
 			'^params2/([0-9]+)\.(([a-z])?[0-9]+)\.html$': params2,
 			'^params3/(([0-9]+)\.(([a-z])?[0-9]+([a-z]([0-9]+)))\.html)$': params3
 		});
+
+		after(function() {
+			r.dispose();
+		})
 
 		it("simple path", function() {
 			n = 0;
@@ -316,6 +348,27 @@ describe("mq", function() {
 			mq.invoke(r, m);
 			assert.equal('/test', m.value);
 		});
+
+		it("memory leak", function() {
+			var svr = new net.TcpServer(8890, function() {});
+			ss.push(svr.socket);
+
+			GC();
+			var no1 = os.memoryUsage().nativeObjects.objects;
+
+			svr.handler = new mq.Routing({
+				"^/api/a$": function(v) {},
+				"^/api/a(/.*)$": function(v) {}
+			});
+
+			GC();
+			assert.equal(no1 + 2, os.memoryUsage().nativeObjects.objects);
+
+			svr.handler = mq.jsHandler(function(v) {});
+
+			GC();
+			assert.equal(no1, os.memoryUsage().nativeObjects.objects);
+		});
 	});
 
 	it("await", function() {
@@ -329,7 +382,7 @@ describe("mq", function() {
 				n = 200;
 				aw.end();
 			}
-			delayend.start();
+			coroutine.start(delayend);
 
 			return aw;
 		}), m);
@@ -346,28 +399,6 @@ describe("mq", function() {
 			return aw;
 		}), m);
 		assert.equal(n, 400);
-	});
-
-	it("PacketHandler", function() {
-		var s = new net.TcpServer(9876, new mq.PacketHandler(function(r) {
-			var d = r.body.readAll();
-			r.clear();
-			r.response.body.write(d.toString().toUpperCase());
-		}));
-
-		s.asyncRun();
-
-		var c = new net.Socket();
-		c.connect('127.0.0.1', 9876);
-		var r = new io.BufferedStream(c);
-
-		r.writePacket(new Buffer('abcdefg'));
-		var b = r.readPacket();
-		assert.equal(b.toString(), 'ABCDEFG');
-
-		r.writePacket(new Buffer('abcdefg'));
-		var b = r.readPacket();
-		assert.equal(b.toString(), 'ABCDEFG');
 	});
 });
 

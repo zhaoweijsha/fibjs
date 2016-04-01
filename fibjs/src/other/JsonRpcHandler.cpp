@@ -5,7 +5,6 @@
  *      Author: lion
  */
 
-#include "ifs/rpc.h"
 #include "ifs/mq.h"
 #include "ifs/encoding.h"
 #include "ifs/HttpRequest.h"
@@ -19,20 +18,8 @@
 namespace fibjs
 {
 
-result_t rpc_base::json(v8::Local<v8::Value> hdlr,
-                        obj_ptr<Handler_base> &retVal)
-{
-    obj_ptr<Handler_base> hdlr1;
-    result_t hr = JSHandler::New(hdlr, hdlr1);
-    if (hr < 0)
-        return hr;
-
-    retVal = new JsonRpcHandler(hdlr1);
-    return 0;
-}
-
 result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                                exlib::AsyncEvent *ac)
+                                AsyncEvent *ac)
 {
     if (ac)
         return CHECK_ERROR(CALL_E_NOASYNC);
@@ -41,6 +28,7 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     if (msg == NULL)
         return CHECK_ERROR(CALL_E_BADVARTYPE);
 
+    Isolate* isolate = holder();
     obj_ptr<HttpRequest_base> htreq = HttpRequest_base::getInstance(v);
     obj_ptr<SeekableStream_base> body;
     obj_ptr<Buffer_base> buf;
@@ -51,7 +39,6 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     int64_t len;
     int32_t sz, i;
     result_t hr;
-    bool bFormReq = false;
     obj_ptr<List_base> params;
 
     if (htreq != NULL)
@@ -60,39 +47,27 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
             return CHECK_ERROR(Runtime::setError("jsonrpc: Content-Type is missing."));
 
         str = result.string();
-        if (!qstricmp(str.c_str(), "application/x-www-form-urlencoded", 33))
-        {
-            obj_ptr<HttpCollection_base> form;
-            htreq->get_form(form);
-            if (form->first("jsonrpc", result) == CALL_RETURN_NULL)
-                return CHECK_ERROR(Runtime::setError("jsonrpc: Invalid form data."));
-            str = result.string();
-            bFormReq = true;
-        }
-        else if (qstricmp(str.c_str(), "application/json", 16))
+        if (qstricmp(str.c_str(), "application/json", 16))
             return CHECK_ERROR(Runtime::setError("jsonrpc: Invalid Content-Type."));
     }
 
-    if (!bFormReq)
-    {
-        msg->get_body(body);
+    msg->get_body(body);
 
-        body->size(len);
-        sz = (int32_t) len;
+    body->size(len);
+    sz = (int32_t) len;
 
-        body->rewind();
-        hr = body->ac_read(sz, buf);
-        if (hr < 0)
-            return hr;
-        if (hr == CALL_RETURN_NULL)
-            return CHECK_ERROR(Runtime::setError("jsonrpc: request body is empty."));
-        body.Release();
+    body->rewind();
+    hr = body->ac_read(sz, buf);
+    if (hr < 0)
+        return hr;
+    if (hr == CALL_RETURN_NULL)
+        return CHECK_ERROR(Runtime::setError("jsonrpc: request body is empty."));
+    body.Release();
 
-        buf->toString(str);
-        buf.Release();
-    }
+    buf->toString(str);
+    buf.Release();
 
-    hr = encoding_base::jsonDecode(str.c_str(), jsval);
+    hr = json_base::decode(str.c_str(), jsval);
     if (hr < 0)
         return hr;
 
@@ -101,8 +76,7 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
 
     o = v8::Local<v8::Object>::Cast(jsval);
 
-    jsval = o->Get(v8::String::NewFromUtf8(isolate, "method",
-                                           v8::String::kNormalString, 6));
+    jsval = o->Get(isolate->NewFromUtf8("method", 6));
     if (IsEmpty(jsval))
         return CHECK_ERROR(Runtime::setError("jsonrpc: method is missing."));
 
@@ -111,8 +85,7 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     str.append(*v8::String::Utf8Value(jsval));
     msg->set_value(str.c_str());
 
-    jsval = o->Get(v8::String::NewFromUtf8(isolate, "params",
-                                           v8::String::kNormalString, 6));
+    jsval = o->Get(isolate->NewFromUtf8("params", 6));
     if (!jsval.IsEmpty() && jsval->IsArray())
     {
         v8::Local<v8::Array> jsparams = v8::Local<v8::Array>::Cast(jsval);
@@ -130,18 +103,17 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     if (hr >= 0 && hr != CALL_RETURN_NULL)
         hr = mq_base::ac_invoke(hdlr1, v);
 
-    v8::Local<v8::String> strId = v8::String::NewFromUtf8(isolate, "id",
-                                  v8::String::kNormalString, 2);
+    v8::Local<v8::String> strId = isolate->NewFromUtf8("id", 2);
     jsval = o->Get(strId);
 
-    o = v8::Object::New(isolate);
+    o = v8::Object::New(isolate->m_isolate);
     o->Set(strId, jsval);
 
     if (hr < 0)
     {
         asyncLog(console_base::_ERROR, "JsonRpcHandler: " + getResultMessage(hr));
 
-        result_t hr1 = encoding_base::jsonEncode(o, str);
+        result_t hr1 = json_base::encode(o, str);
         if (hr1 < 0)
             return hr1;
 
@@ -163,32 +135,15 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     else
     {
         msg->get_result(result);
-        o->Set(v8::String::NewFromUtf8(isolate, "result",
-                                       v8::String::kNormalString, 6), result);
+        o->Set(isolate->NewFromUtf8("result", 6), result);
 
-        hr = encoding_base::jsonEncode(o, str);
+        hr = json_base::encode(o, str);
 
         if (hr < 0)
             return hr;
     }
 
     body = new MemoryStream();
-
-    if (bFormReq)
-    {
-        std::string strTemp;
-
-        strTemp.assign(
-            "<html><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><script>window.name=\"",
-            94);
-
-        encoding_base::jsstr(str.c_str(), str);
-        strTemp.append(str);
-
-        strTemp.append("\";</script></html>", 18);
-
-        str = strTemp;
-    }
 
     buf = new Buffer(str);
     hr = body->ac_write(buf);
@@ -204,8 +159,8 @@ result_t JsonRpcHandler::invoke(object_base *v, obj_ptr<Handler_base> &retVal,
     rep->set_body(body);
 
     if (htreq)
-        ((HttpMessage_base *)(Message_base *)rep)->setHeader("Content-Type",
-                bFormReq ? "text/html" : "application/json");
+        ((HttpMessage_base *)(Message_base *)rep)->setHeader(
+            "Content-Type", "application/json");
 
     return CALL_RETURN_NULL;
 }

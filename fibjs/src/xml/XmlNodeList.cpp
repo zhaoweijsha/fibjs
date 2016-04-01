@@ -9,6 +9,7 @@
 #include "XmlNodeImpl.h"
 #include "ifs/XmlText.h"
 #include <string.h>
+#include "StringBuffer.h"
 
 namespace fibjs
 {
@@ -37,11 +38,10 @@ result_t XmlNodeList::_indexed_getter(uint32_t index, obj_ptr<XmlNode_base> &ret
 
 result_t XmlNodeList::toString(std::string &retVal)
 {
-    std::vector<std::string> strs;
+    StringBuffer strs;
 
     int32_t sz = (int32_t)m_childs.size();
     int32_t i;
-    int32_t len = 0, pos = 0;
 
     if (sz == 0)
     {
@@ -56,17 +56,10 @@ result_t XmlNodeList::toString(std::string &retVal)
         std::string str;
 
         m_childs[i]->m_node->toString(str);
-        len += (int32_t)str.length();
-        strs.push_back(str);
+        strs.append(str);
     }
 
-    retVal.resize(len);
-    for (i = 0; i < sz; i ++)
-    {
-        int32_t l = (int32_t)strs[i].length();
-        memcpy(&retVal[pos], strs[i].c_str(), l);
-        pos += l;
-    }
+    retVal = strs.str();
 
     return 0;
 }
@@ -169,7 +162,7 @@ result_t XmlNodeList::insertBefore(XmlNode_base *newChild, XmlNode_base *refChil
         return CHECK_ERROR(CALL_E_INVALIDARG);
 
     if (pRef->m_parent != m_this)
-        return CHECK_ERROR(Runtime::setError("The node before which the new node is to be inserted is not a child of this node."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The node before which the new node is to be inserted is not a child of this node."));
 
     if (pNew == pRef)
     {
@@ -178,7 +171,7 @@ result_t XmlNodeList::insertBefore(XmlNode_base *newChild, XmlNode_base *refChil
     }
 
     if (!checkNew(pNew))
-        return CHECK_ERROR(Runtime::setError("The new child element contains the parent."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The new child element contains the parent."));
 
     int32_t sz = (int32_t)m_childs.size();
     int32_t idx = pRef->m_index;
@@ -209,7 +202,7 @@ result_t XmlNodeList::insertAfter(XmlNode_base *newChild, XmlNode_base *refChild
         return CHECK_ERROR(CALL_E_INVALIDARG);
 
     if (pRef->m_parent != m_this)
-        return CHECK_ERROR(Runtime::setError("The node after which the new node is to be inserted is not a child of this node."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The node after which the new node is to be inserted is not a child of this node."));
 
     if (pNew == pRef)
     {
@@ -218,7 +211,7 @@ result_t XmlNodeList::insertAfter(XmlNode_base *newChild, XmlNode_base *refChild
     }
 
     if (!checkNew(pNew))
-        return CHECK_ERROR(Runtime::setError("The new child element contains the parent."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The new child element contains the parent."));
 
     int32_t sz = (int32_t)m_childs.size();
     int32_t idx = pRef->m_index + 1;
@@ -249,7 +242,7 @@ result_t XmlNodeList::replaceChild(XmlNode_base *newChild, XmlNode_base *oldChil
         return CHECK_ERROR(CALL_E_INVALIDARG);
 
     if (pOld->m_parent != m_this)
-        return CHECK_ERROR(Runtime::setError("The node to be replaced is not a child of this node."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The node to be replaced is not a child of this node."));
 
     if (pNew == pOld)
     {
@@ -258,7 +251,7 @@ result_t XmlNodeList::replaceChild(XmlNode_base *newChild, XmlNode_base *oldChil
     }
 
     if (!checkNew(pNew))
-        return CHECK_ERROR(Runtime::setError("The new child element contains the parent."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The new child element contains the parent."));
 
     int32_t idx = pOld->m_index;
 
@@ -278,7 +271,7 @@ result_t XmlNodeList::removeChild(XmlNode_base *oldChild, obj_ptr<XmlNode_base> 
         return CHECK_ERROR(CALL_E_INVALIDARG);
 
     if (pOld->m_parent != m_this)
-        return CHECK_ERROR(Runtime::setError("The node to be removed is not a child of this node."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The node to be removed is not a child of this node."));
 
     int32_t sz = (int32_t)m_childs.size();
     int32_t i;
@@ -304,10 +297,10 @@ result_t XmlNodeList::appendChild(XmlNode_base *newChild, obj_ptr<XmlNode_base> 
         return CHECK_ERROR(CALL_E_INVALIDARG);
 
     if (!checkNew(pNew))
-        return CHECK_ERROR(Runtime::setError("The new child element contains the parent."));
+        return CHECK_ERROR(Runtime::setError("XmlNodeList: The new child element contains the parent."));
 
     pNew->setParent(m_this, (int32_t)m_childs.size());
-    m_childs.push_back(pNew);
+    m_childs.append(pNew);
 
     retVal = newChild;
     return 0;

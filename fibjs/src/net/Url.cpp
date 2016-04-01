@@ -217,7 +217,7 @@ void Url::parsePath(const char *&url)
     }
 
     if (m_protocol.compare("javascript:"))
-        Url::encodeURI(m_pathname.c_str(), (int) m_pathname.length(),
+        Url::encodeURI(m_pathname.c_str(), (int32_t) m_pathname.length(),
                        m_pathname, pathTable);
     url = p;
 }
@@ -234,7 +234,7 @@ void Url::parseQuery(const char *&url)
         p++;
 
     m_query.assign(url, p - url);
-    Url::encodeURI(m_query.c_str(), (int) m_query.length(), m_query,
+    Url::encodeURI(m_query.c_str(), (int32_t) m_query.length(), m_query,
                    queryTable);
     url = p;
 }
@@ -277,11 +277,11 @@ result_t Url::parse(const char *url)
     return 0;
 }
 
-std::string getValue(v8::Local<v8::Object> &args, const char *key)
+std::string getValue(Isolate* isolate, v8::Local<v8::Object> &args, const char *key)
 {
     std::string s;
 
-    v8::Local<v8::Value> v = args->Get(v8::String::NewFromUtf8(isolate, key));
+    v8::Local<v8::Value> v = args->Get(isolate->NewFromUtf8(key));
 
     if (!v.IsEmpty() && v->IsString())
         s = *v8::String::Utf8Value(v);
@@ -293,29 +293,31 @@ result_t Url::format(v8::Local<v8::Object> args)
 {
     clear();
 
-    put_protocol(getValue(args, "protocol"));
-    m_username = getValue(args, "username");
-    m_password = getValue(args, "password");
+    Isolate* isolate = holder();
 
-    m_host = getValue(args, "host");
-    m_hostname = getValue(args, "hostname");
-    m_port = getValue(args, "port");
+    put_protocol(getValue(isolate, args, "protocol"));
+    m_username = getValue(isolate, args, "username");
+    m_password = getValue(isolate, args, "password");
 
-    m_pathname = getValue(args, "pathname");
+    m_host = getValue(isolate, args, "host");
+    m_hostname = getValue(isolate, args, "hostname");
+    m_port = getValue(isolate, args, "port");
+
+    m_pathname = getValue(isolate, args, "pathname");
     if (m_pathname.length() > 0 && !isUrlSlash(m_pathname[0])
             && m_hostname.length() > 0)
         m_pathname.insert(0, 1, URL_SLASH);
 
-    m_query = getValue(args, "query");
+    m_query = getValue(isolate, args, "query");
 
-    m_hash = getValue(args, "hash");
+    m_hash = getValue(isolate, args, "hash");
     if (m_hash.length() > 0 && m_hash[0] != '#')
         m_hash.insert(0, 1, '#');
 
     if (m_slashes && m_protocol.compare("file:") && m_hostname.length() == 0)
         m_slashes = false;
 
-    v8::Local<v8::Value> v = args->Get(v8::String::NewFromUtf8(isolate, "slashes"));
+    v8::Local<v8::Value> v = args->Get(holder()->NewFromUtf8("slashes"));
 
     if (!IsEmpty(v))
         m_slashes = v->BooleanValue();
@@ -408,8 +410,8 @@ result_t Url::normalize()
     std::string str;
     const char *p1 = m_pathname.c_str();
     char *pstr;
-    int pos = 0;
-    int root = 0;
+    int32_t pos = 0;
+    int32_t root = 0;
     bool bRoot = false;
 
     str.resize(m_pathname.length());
@@ -514,7 +516,7 @@ void Url::put_protocol(std::string str)
         "http:", "https:", "ftp:", "gopher:", "file:", "http:", "https:", "ftp:",
         "gopher:", "file:"
     };
-    int i;
+    int32_t i;
 
     m_protocol = str;
     m_defslashes = false;
@@ -525,7 +527,7 @@ void Url::put_protocol(std::string str)
         if (m_protocol[m_protocol.length() - 1] != ':')
             m_protocol.append(1, ':');
 
-        for (i = 0; i < (int) (sizeof(s_slashed) / sizeof(const char *)); i++)
+        for (i = 0; i < (int32_t) (sizeof(s_slashed) / sizeof(const char *)); i++)
             if (!m_protocol.compare(s_slashed[i]))
             {
                 m_defslashes = true;

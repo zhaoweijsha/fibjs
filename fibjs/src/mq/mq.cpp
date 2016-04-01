@@ -11,7 +11,6 @@
 #include "NullHandler.h"
 #include "AsyncWaitHandler.h"
 #include "HttpHandler.h"
-#include "PacketHandler.h"
 #include "Chain.h"
 #include "Routing.h"
 #include "Fiber.h"
@@ -19,20 +18,22 @@
 namespace fibjs
 {
 
+DECLARE_MODULE(mq);
+
 result_t mq_base::invoke(Handler_base *hdlr, object_base *v,
-                         exlib::AsyncEvent *ac)
+                         AsyncEvent *ac)
 {
-    class asyncInvoke: public asyncState
+    class asyncInvoke: public AsyncState
     {
     public:
-        asyncInvoke(Handler_base *hdlr, object_base *v, exlib::AsyncEvent *ac) :
-            asyncState(ac), m_next(hdlr), m_v(v)
+        asyncInvoke(Handler_base *hdlr, object_base *v, AsyncEvent *ac) :
+            AsyncState(ac), m_next(hdlr), m_v(v)
         {
             set(call);
         }
 
     public:
-        static int call(asyncState *pState, int n)
+        static int32_t call(AsyncState *pState, int32_t n)
         {
             asyncInvoke *pThis = (asyncInvoke *) pState;
             result_t hr;

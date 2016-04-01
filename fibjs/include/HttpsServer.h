@@ -28,9 +28,9 @@ public:
 
 public:
     // TcpServer_base
-    virtual result_t run(exlib::AsyncEvent *ac);
+    virtual result_t run(AsyncEvent *ac);
     virtual result_t asyncRun();
-    virtual result_t stop(exlib::AsyncEvent *ac);
+    virtual result_t stop(AsyncEvent *ac);
     virtual result_t get_socket(obj_ptr<Socket_base> &retVal);
     virtual result_t get_handler(obj_ptr<Handler_base> &retVal);
     virtual result_t set_handler(Handler_base *newVal);
@@ -38,6 +38,7 @@ public:
 
 public:
     // HttpServer_base
+    virtual result_t onerror(v8::Local<v8::Object> hdlrs);
     virtual result_t get_crossDomain(bool &retVal);
     virtual result_t set_crossDomain(bool newVal);
     virtual result_t get_forceGZIP(bool &retVal);
@@ -59,8 +60,15 @@ public:
     result_t create(X509Cert_base *crt, PKey_base *key, const char *addr, int32_t port, v8::Local<v8::Value> hdlr);
 
 private:
-    naked_ptr<SslServer_base> m_server;
-    naked_ptr<HttpHandler_base> m_handler;
+    SslServer_base* server()
+    {
+        return SslServer_base::getInstance(wrap()->GetHiddenValue(holder()->NewFromUtf8("server")));
+    }
+
+    HttpHandler_base* handler()
+    {
+        return HttpHandler_base::getInstance(wrap()->GetHiddenValue(holder()->NewFromUtf8("handler")));
+    }
 };
 
 } /* namespace fibjs */

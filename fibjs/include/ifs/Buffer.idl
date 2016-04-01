@@ -14,6 +14,21 @@ interface Buffer : object
     Buffer(Array datas);
 
     /*! @brief 缓存对象构造函数
+     @param datas 初始化数据数组
+     */
+    Buffer(ArrayBuffer datas);
+
+    /*! @brief 缓存对象构造函数
+     @param datas 初始化数据数组
+     */
+    Buffer(TypedArray datas);
+
+    /*! @brief 缓存对象构造函数
+     @param buffer 初始化Buffer对象
+     */
+    Buffer(Buffer buffer);
+
+    /*! @brief 缓存对象构造函数
      @param str 初始化字符串，字符串将以 utf-8 格式写入，缺省则创建一个空对象
      @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
      */
@@ -23,6 +38,19 @@ interface Buffer : object
      @param size 初始化缓冲区大小
      */
     Buffer(Integer size = 0);
+
+    /*! @brief 检测给定的变量是否是 Buffer 对象
+     @param v 给定需要检测的变量
+     @return 传入对象是否 Buffer 对象
+    */
+    static Boolean isBuffer(Value v);
+
+    /*! @brief 拼接多个缓存区中的数据
+     @param buflist 待拼接的Buffer数组
+     @param cutLength 截取多少个Buffer对象
+     @return 拼接后产生的新 Buffer 对象
+    */
+    static Buffer concat(Array buflist, Integer cutLength = -1);
 
     /*! @brief 缓存对象可使用下标直接访问二进制数据*/
     Integer operator[];
@@ -35,21 +63,103 @@ interface Buffer : object
      */
     resize(Integer sz);
 
-    /*! @brief 向缓存对象写入一组数据
+    /*! @brief 在缓存对象尾部写入一组数据
      @param datas 初始化数据数组
      */
-    write(Array datas);
+    append(Array datas);
 
-    /*! @brief 向缓存对象写入一组二进制数据
+    /*! @brief 在缓存对象尾部写入一组数据
+     @param datas 初始化数据数组
+     */
+    append(TypedArray datas);
+
+    /*! @brief 在缓存对象尾部写入一组数据
+     @param datas 初始化数据数组
+     */
+    append(ArrayBuffer datas);
+
+    /*! @brief 在缓存对象尾部写入一组二进制数据
      @param data 初始化二进制数据
      */
-    write(Buffer data);
+    append(Buffer data);
 
-    /*! @brief 向缓存对象写入字符串，字符串将以 utf-8 格式写入
+    /*! @brief 在缓存对象尾部写入字符串，字符串将以 utf-8 格式写入
      @param str 要写入的字符串
      @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
      */
-    write(String str, String codec = "utf8");
+    append(String str, String codec = "utf8");
+
+    /*! @brief 向缓存对象写入指定字符串，字符串默认为utf-8，越界时只写入部分数据
+     @param str 待写入的字符串
+     @param offset 写入起始位置
+     @param length 写入长度（单位字节，默认值-1），未指定时为待写入字符串的长度
+     @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
+     @return 写入的数据字节长度
+     */
+    Integer write(String str, Integer offset = 0, Integer length = -1, String codec = "utf8");
+
+    /*! @brief 向缓存对象写入指定字符串，字符串默认为utf-8，越界时只写入部分数据
+     @param str 待写入的字符串
+     @param offset 写入起始位置
+     @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
+     @return 写入的数据字节长度
+     */
+    Integer write(String str, Integer offset = 0, String codec = "utf8");
+
+    /*! @brief 向缓存对象写入指定字符串，字符串默认为utf-8，越界时只写入部分数据
+     @param str 待写入的字符串
+     @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
+     @return 写入的数据字节长度
+     */
+    Integer write(String str, String codec = "utf8");
+
+    /*! @brief 为Buffer对象填充指定内容数据
+     @param v 需要填充的数据，如果未指定offset和end，将填充满整个buffer
+     @param offset 填充起始位置
+     @param end 填充终止位置
+     @return 返回当前 Buffer 对象
+     */
+    Buffer fill(Integer v, Integer offset = 0, Integer end = -1);
+
+    /*! @brief 为Buffer对象填充指定内容数据
+     @param v 需要填充的数据，如果未指定offset和end，将填充满整个buffer
+     @param offset 填充起始位置
+     @param end 填充终止位置
+     @return 返回当前 Buffer 对象
+     */
+    Buffer fill(Buffer v, Integer offset = 0, Integer end = -1);
+
+    /*! @brief 为Buffer对象填充指定内容数据
+     @param v 需要填充的数据，如果未指定offset和end，将填充满整个buffer
+     @param offset 填充起始位置
+     @param end 填充终止位置
+     @return 返回当前 Buffer 对象
+     */
+    Buffer fill(String v, Integer offset = 0, Integer end = -1);
+
+    /*! @brief 返回某个指定数据在Buffer中首次出现的位置
+     @param v 待查找数据，如果未指定offset，默认从起始位开始
+     @param offset 起始查找位置
+     */
+    Integer indexOf(Integer v, Integer offset = 0);
+
+    /*! @brief 返回某个指定数据在Buffer中首次出现的位置
+     @param v 待查找数据，如果未指定offset，默认从起始位开始
+     @param offset 起始查找位置
+     */
+    Integer indexOf(Buffer v, Integer offset = 0);
+
+    /*! @brief 返回某个指定数据在Buffer中首次出现的位置
+     @param v 待查找数据，如果未指定offset，默认从起始位开始
+     @param offset 起始查找位置
+     */
+    Integer indexOf(String v, Integer offset = 0);
+
+    /*! @brief 比较缓存区的内容
+     @param buf 待比较缓存对象
+     @return 内容比较结果
+     */
+    Integer compare(Buffer buf);
 
     /*! @brief 从源缓存对象区域拷贝数据到目标缓存对象区域
      @param targetBuffer 目标缓存对象
@@ -61,200 +171,256 @@ interface Buffer : object
     Integer copy(Buffer targetBuffer, Integer targetStart = 0, Integer sourceStart = 0, Integer sourceEnd = -1);
 
     /*! @brief 从缓存对象读取一个 8 位无符号整型数值
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readUInt8(Integer offset, Boolean noAssert = false);
+    Integer readUInt8(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 16 位无符号整型数值，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readUInt16LE(Integer offset, Boolean noAssert = false);
+    Integer readUInt16LE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 16 位无符号整型数值，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readUInt16BE(Integer offset, Boolean noAssert = false);
+    Integer readUInt16BE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 32 位无符号整型数值，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Long readUInt32LE(Integer offset, Boolean noAssert = false);
+    Long readUInt32LE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 32 位无符号整型数值，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Long readUInt32BE(Integer offset, Boolean noAssert = false);
+    Long readUInt32BE(Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 从缓存对象读取一个无符号整型数值，最大支持 48 位，以低字节序的存储方式
+     @param offset 指定读取的起始位置，缺省为 0
+     @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
+     @return 返回读取的整型数值
+     */
+    Long readUIntLE(Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 从缓存对象读取一个无符号整型数值，最大支持 48 位，以高字节序的存储方式
+     @param offset 指定读取的起始位置，缺省为 0
+     @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
+     @return 返回读取的整型数值
+     */
+    Long readUIntBE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 8 位整型数值
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readInt8(Integer offset, Boolean noAssert = false);
+    Integer readInt8(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 16 位整型数值，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readInt16LE(Integer offset, Boolean noAssert = false);
+    Integer readInt16LE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 16 位整型数值，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readInt16BE(Integer offset, Boolean noAssert = false);
+    Integer readInt16BE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 32 位整型数值，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readInt32LE(Integer offset, Boolean noAssert = false);
+    Integer readInt32LE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 32 位整型数值，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Integer readInt32BE(Integer offset, Boolean noAssert = false);
+    Integer readInt32BE(Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 从缓存对象读取一个整型数值，最大支持 48 位，以低字节序的存储方式
+     @param offset 指定读取的起始位置，缺省为 0
+     @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
+     @return 返回读取的整型数值
+     */
+    Long readIntLE(Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 从缓存对象读取一个整型数值，最大支持 48 位，以高字节序的存储方式
+     @param offset 指定读取的起始位置，缺省为 0
+     @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
+     @return 返回读取的整型数值
+     */
+    Long readIntBE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 64 位整型数值，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Int64 readInt64LE(Integer offset, Boolean noAssert = false);
+    Int64 readInt64LE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个 64 位整型数值，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的整型数值
      */
-    Int64 readInt64BE(Integer offset, Boolean noAssert = false);
+    Int64 readInt64BE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个浮点数，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的浮点数
      */
-    Number readFloatLE(Integer offset, Boolean noAssert = false);
+    Number readFloatLE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个浮点数，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的浮点数
      */
-    Number readFloatBE(Integer offset, Boolean noAssert = false);
+    Number readFloatBE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个双精度浮点数，以低字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的双精度浮点数
      */
-    Number readDoubleLE(Integer offset, Boolean noAssert = false);
+    Number readDoubleLE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 从缓存对象读取一个双精度浮点数，以高字节序的存储方式
-     @param offset 指定读取的起始位置
+     @param offset 指定读取的起始位置，缺省为 0
      @param noAssert 指定读取越界时不抛出错误，缺省为 flase，抛出
      @return 返回读取的双精度浮点数
      */
-    Number readDoubleBE(Integer offset, Boolean noAssert = false);
+    Number readDoubleBE(Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 8 位无符号整型数值
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeUInt8(Integer value, Integer offset, Boolean noAssert = false);
+    writeUInt8(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 16 位无符号整型数值，以低字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeUInt16LE(Integer value, Integer offset, Boolean noAssert = false);
+    writeUInt16LE(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 16 位无符号整型数值，以高字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeUInt16BE(Integer value, Integer offset, Boolean noAssert = false);
+    writeUInt16BE(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 32 位无符号整型数值，以低字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeUInt32LE(Long value, Integer offset, Boolean noAssert = false);
+    writeUInt32LE(Long value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 32 位无符号整型数值，以高字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeUInt32BE(Long value, Integer offset, Boolean noAssert = false);
+    writeUInt32BE(Long value, Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 向缓存对象写入一个无符号整型数值，最大支持 48 位，以低字节序的存储方式
+     @param value 指定写入的数值
+     @param offset 指定写入的起始位置
+     @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
+     */
+    writeUIntLE(Long value, Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 向缓存对象写入一个无符号整型数值，最大支持 48 位，以高字节序的存储方式
+     @param value 指定写入的数值
+     @param offset 指定写入的起始位置
+     @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
+     */
+    writeUIntBE(Long value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 8 位整型数值
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt8(Integer value, Integer offset, Boolean noAssert = false);
+    writeInt8(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 16 位整型数值，以低字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt16LE(Integer value, Integer offset, Boolean noAssert = false);
+    writeInt16LE(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 16 位整型数值，以高字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt16BE(Integer value, Integer offset, Boolean noAssert = false);
+    writeInt16BE(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 32 位整型数值，以低字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt32LE(Integer value, Integer offset, Boolean noAssert = false);
+    writeInt32LE(Integer value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 32 位整型数值，以高字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt32BE(Integer value, Integer offset, Boolean noAssert = false);
+    writeInt32BE(Integer value, Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 向缓存对象写入一个整型数值，最大支持 48 位，以低字节序的存储方式
+     @param value 指定写入的数值
+     @param offset 指定写入的起始位置
+     @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
+     */
+    writeIntLE(Long value, Integer offset = 0, Boolean noAssert = false);
+
+    /*! @brief 向缓存对象写入一个整型数值，最大支持 48 位，以高字节序的存储方式
+     @param value 指定写入的数值
+     @param offset 指定写入的起始位置
+     @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
+     */
+    writeIntBE(Long value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 64 位整型数值，以低字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt64LE(Int64 value, Integer offset, Boolean noAssert = false);
+    writeInt64LE(Int64 value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个 64 位整型数值，以高字节序的存储方式
      @param value 指定写入的数值
      @param offset 指定写入的起始位置
      @param noAssert 指定写入越界时不抛出错误，缺省为 flase，抛出
      */
-    writeInt64BE(Int64 value, Integer offset, Boolean noAssert = false);
+    writeInt64BE(Int64 value, Integer offset = 0, Boolean noAssert = false);
 
     /*! @brief 向缓存对象写入一个浮点数，以低字节序的存储方式
      @param value 指定写入的数值
@@ -284,12 +450,18 @@ interface Buffer : object
      */
     writeDoubleBE(Number value, Integer offset, Boolean noAssert = false);
 
-    /*! @brief 返回一个新缓存对象，包含指定范围的数据，若范围超出缓存，则只返回有效部分数据
+    /*! @brief 返回一个新缓存对象，包含指定起始到缓存结尾的数据
      @param start 指定范围的起始，缺省从头开始
-     @param end 指定范围的结束，缺省到缓存结尾
      @return 返回新的缓存对象
      */
-    Buffer slice(Integer start = 0, Integer end = -1);
+    Buffer slice(Integer start = 0);
+
+    /*! @brief 返回一个新缓存对象，包含指定范围的数据，若范围超出缓存，则只返回有效部分数据
+     @param start 指定范围的起始
+     @param end 指定范围的结束
+     @return 返回新的缓存对象
+     */
+    Buffer slice(Integer start, Integer end);
 
     /*! @brief 使用 16 进制编码缓存对象内容
      @return 返回编码字符串
@@ -301,11 +473,18 @@ interface Buffer : object
      */
     String base64();
 
+    /*! @brief 返回全部二进制数据的数组
+     @return 返回包含对象数据的数组
+    */
+    Array toArray();
+
     /*! @brief 返回二进制数据的编码字符串
      @param codec 指定编码格式，允许值为："hex", "base64", "utf8", 或者系统支持的字符集
+     @param offset 读取起始位置
+     @param end 读取终止位置
      @return 返回对象的字符串表示
     */
-    String toString(String codec);
+    String toString(String codec, Integer offset = 0, Integer end = -1);
 
     /*! @brief 返回二进制数据的 utf8 编码字符串
      @return 返回对象的字符串表示

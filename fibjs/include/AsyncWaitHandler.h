@@ -23,7 +23,7 @@ public:
     class asyncWaiter: public AsyncCall
     {
     public:
-        asyncWaiter(exlib::AsyncEvent *ac) :
+        asyncWaiter(AsyncEvent *ac) :
             AsyncCall(NULL), m_ac(ac)
         {}
 
@@ -35,7 +35,7 @@ public:
         }
 
     private:
-        exlib::AsyncEvent *m_ac;
+        AsyncEvent *m_ac;
     };
 
 public:
@@ -45,7 +45,7 @@ public:
 public:
     // Handler_base
     virtual result_t invoke(object_base *v, obj_ptr<Handler_base> &retVal,
-                            exlib::AsyncEvent *ac);
+                            AsyncEvent *ac);
 
 public:
     // AsyncWait_base
@@ -53,8 +53,8 @@ public:
 
 private:
     asyncWaiter *m_as;
-    volatile int32_t m_stat;
-    int32_t m_invoked;
+    exlib::atomic m_stat;
+    exlib::atomic m_invoked;
 };
 
 } /* namespace fibjs */

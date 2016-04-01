@@ -23,6 +23,7 @@ describe("vm", function() {
 
 		sbox.add('a', new Number(100));
 		sbox.add('a', 100);
+		sbox.add('coroutine', require('coroutine'));
 
 		sbox.require('./vm_test/t1').fun();
 		assert.equal(1000, b.a);
@@ -122,6 +123,17 @@ describe("vm", function() {
 		});
 	});
 
+	it("block global repl&argv", function() {
+		sbox = new vm.SandBox({});
+		assert.throws(function() {
+			sbox.addScript("t1.js", "repl;");
+		});
+
+		assert.throws(function() {
+			sbox.addScript("t2.js", "argv;");
+		});
+	});
+
 	it("block function return", function() {
 		sbox = new vm.SandBox({});
 		assert.throws(function() {
@@ -189,4 +201,4 @@ describe("vm", function() {
 	});
 });
 
-//test.run(console.DEBUG);
+// test.run(console.DEBUG);

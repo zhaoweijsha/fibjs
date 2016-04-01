@@ -30,11 +30,8 @@ void std_logger::out(const char *txt)
     public:
         color_out()
         {
-            CONSOLE_SCREEN_BUFFER_INFO csbiInfo;
-
             m_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-            GetConsoleScreenBufferInfo(m_handle, &csbiInfo);
-            m_Now = m_wAttr = csbiInfo.wAttributes;
+            m_Now = m_wAttr = 0x7;
             m_wLight = m_wAttr & FOREGROUND_INTENSITY;
         }
 
@@ -174,14 +171,12 @@ void std_logger::out(const char *txt)
     fflush(stdout);
 }
 
-void std_logger::write(item *pn)
+result_t std_logger::write(AsyncEvent *ac)
 {
     item *p1;
 
-    while (pn)
+    while ((p1 = m_workinglogs.getHead()) != 0)
     {
-        p1 = pn;
-
         std::string txt;
         if (p1->m_priority == console_base::_NOTICE)
             txt = logger::notice() + p1->m_msg + COLOR_RESET + "\n";
@@ -189,14 +184,17 @@ void std_logger::write(item *pn)
             txt = logger::warn() + p1->m_msg + COLOR_RESET + "\n";
         else if (p1->m_priority <= console_base::_ERROR)
             txt = logger::error() + p1->m_msg + COLOR_RESET + "\n";
+        else if (p1->m_priority == console_base::_PRINT)
+            txt = p1->m_msg;
         else
             txt = p1->m_msg + "\n";
 
         out(txt.c_str());
 
-        pn = (logger::item *) p1->m_next;
         delete p1;
     }
+
+    return 0;
 }
 
 }

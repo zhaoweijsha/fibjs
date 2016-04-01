@@ -1,0 +1,20 @@
+
+/*! @brief WebSocket 包协议转换处理器
+
+  用以将 Http 协议转换为 WebSocket 包协议消息。创建方式：
+  @code
+  var websocket = require("websocket");
+
+  var pkghdlr = new websocket.WebSocketHandler(...);
+  @endcode
+ */
+interface WebSocketHandler: HandlerEx
+{
+    /*! @brief WebSocket 包处理器构造函数
+     @param hdlr 内置消息处理器，处理函数，或 javascript 消息映射对象，详见 mq.jsHandler
+     */
+    WebSocketHandler(Value hdlr);
+
+    /*! @brief 查询和设置最大包尺寸，以 MB 为单位，缺省为 64 */
+    Integer maxSize;
+};

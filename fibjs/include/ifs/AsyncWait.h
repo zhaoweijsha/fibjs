@@ -22,14 +22,25 @@ class Handler_base;
 
 class AsyncWait_base : public Handler_base
 {
-	DECLARE_CLASS(AsyncWait_base);
+    DECLARE_CLASS(AsyncWait_base);
 
 public:
-	// AsyncWait_base
-	virtual result_t end() = 0;
+    // AsyncWait_base
+    virtual result_t end() = 0;
 
 public:
-	static void s_end(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s__new(const v8::FunctionCallbackInfo<v8::Value>& args)
+    {
+        CONSTRUCT_INIT();
+
+        Isolate* isolate = Isolate::current();
+
+        isolate->m_isolate->ThrowException(
+            isolate->NewFromUtf8("not a constructor"));
+    }
+
+public:
+    static void s_end(const v8::FunctionCallbackInfo<v8::Value>& args);
 };
 
 }
@@ -37,34 +48,34 @@ public:
 
 namespace fibjs
 {
-	inline ClassInfo& AsyncWait_base::class_info()
-	{
-		static ClassData::ClassMethod s_method[] = 
-		{
-			{"end", s_end, false}
-		};
+    inline ClassInfo& AsyncWait_base::class_info()
+    {
+        static ClassData::ClassMethod s_method[] = 
+        {
+            {"end", s_end, false}
+        };
 
-		static ClassData s_cd = 
-		{ 
-			"AsyncWait", NULL, 
-			1, s_method, 0, NULL, 0, NULL, NULL, NULL,
-			&Handler_base::class_info()
-		};
+        static ClassData s_cd = 
+        { 
+            "AsyncWait", s__new, NULL, 
+            1, s_method, 0, NULL, 0, NULL, NULL, NULL,
+            &Handler_base::class_info()
+        };
 
-		static ClassInfo s_ci(s_cd);
-		return s_ci;
-	}
+        static ClassInfo s_ci(s_cd);
+        return s_ci;
+    }
 
 
-	inline void AsyncWait_base::s_end(const v8::FunctionCallbackInfo<v8::Value>& args)
-	{
-		METHOD_INSTANCE(AsyncWait_base);
-		METHOD_ENTER(0, 0);
+    inline void AsyncWait_base::s_end(const v8::FunctionCallbackInfo<v8::Value>& args)
+    {
+        METHOD_INSTANCE(AsyncWait_base);
+        METHOD_ENTER(0, 0);
 
-		hr = pInst->end();
+        hr = pInst->end();
 
-		METHOD_VOID();
-	}
+        METHOD_VOID();
+    }
 
 }
 

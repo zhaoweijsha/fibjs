@@ -5,10 +5,6 @@ describe('assert', function() {
 	it('assert', function() {
 		var foo = 'bar';
 		assert.ok(foo == 'bar', "expected foo to equal `bar`");
-
-		assert.throws(function() {
-			assert(foo == 'baz', "expected foo to equal `bar`");
-		}, "expected foo to equal `bar`");
 	});
 
 	it('isTrue', function() {
@@ -229,6 +225,14 @@ describe('assert', function() {
 	it('deepEqual (Date)', function() {
 		var a = new Date(1, 2, 3),
 			b = new Date(4, 5, 6);
+		assert.deepEqual(a, a);
+		assert.notDeepEqual(a, b);
+		assert.notDeepEqual(a, {});
+	});
+
+	it('deepEqual (Buffer)', function() {
+		var a = new Buffer("123"),
+			b = new Buffer("456");
 		assert.deepEqual(a, a);
 		assert.notDeepEqual(a, b);
 		assert.notDeepEqual(a, {});
@@ -504,4 +508,4 @@ describe('assert', function() {
 	});
 });
 
-//test.run();
+// test.run(console.DEBUG);

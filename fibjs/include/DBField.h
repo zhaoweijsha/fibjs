@@ -43,6 +43,16 @@ public:
         return m_fields[i];
     }
 
+    void names(v8::Isolate* isolate, v8::Local<v8::Array> &retVal)
+    {
+        int32_t i;
+
+        retVal = v8::Array::New(isolate);
+        for (i = 0; i < (int32_t)m_fields.size(); i++)
+            retVal->Set(i, GetReturnValue(isolate, m_fields[i]));
+    }
+
+
 private:
     std::vector<std::string> m_fields;
 };

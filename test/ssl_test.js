@@ -8,6 +8,8 @@ var fs = require('fs');
 var os = require('os');
 var coroutine = require('coroutine');
 
+var base_port = coroutine.vmid * 10000;
+
 var net_config = {
 	family: net.AF_INET6,
 	address: '::1'
@@ -38,11 +40,19 @@ function del(f) {
 describe('ssl', function() {
 	var sss;
 
+	var ss = [];
+
+	after(function() {
+		ss.forEach(function(s) {
+			s.close();
+		});
+	});
+
 	it("echo server", function() {
 		sss = new ssl.Socket(crt, pk);
 		sss.verification = ssl.VERIFY_NONE;
 
-		var svr = new net.TcpServer(9080, function(s) {
+		var svr = new net.TcpServer(9080 + base_port, function(s) {
 			var ss;
 			var buf;
 
@@ -62,11 +72,13 @@ describe('ssl', function() {
 			}
 		});
 		svr.asyncRun();
+
+		ss.push(svr.socket);
 	});
 
 	function test_handshake() {
 		var s = new net.Socket();
-		s.connect("127.0.0.1", 9080);
+		s.connect("127.0.0.1", 9080 + base_port);
 
 		var ss = new ssl.Socket();
 		ss.connect(s);
@@ -76,7 +88,7 @@ describe('ssl', function() {
 
 	function test_client_cert() {
 		var s = new net.Socket();
-		s.connect("127.0.0.1", 9080);
+		s.connect("127.0.0.1", 9080 + base_port);
 
 		var ss = new ssl.Socket(crt, pk);
 		ss.connect(s);
@@ -110,7 +122,7 @@ describe('ssl', function() {
 
 		for (var i = 0; i < 10; i++) {
 			var s1 = new net.Socket();
-			s1.connect("127.0.0.1", 9080);
+			s1.connect("127.0.0.1", 9080 + base_port);
 
 			var ss = new ssl.Socket();
 			ss.connect(s1);
@@ -124,7 +136,7 @@ describe('ssl', function() {
 	});
 
 	it("ssl.connect", function() {
-		var ss = ssl.connect('ssl://127.0.0.1:9080');
+		var ss = ssl.connect('ssl://localhost:' + (9080 + base_port));
 
 		ss.write("GET / HTTP/1.0");
 		assert.equal("GET / HTTP/1.0", ss.read());
@@ -133,7 +145,7 @@ describe('ssl', function() {
 	});
 
 	it("net.connect", function() {
-		var ss = net.connect('ssl://127.0.0.1:9080');
+		var ss = net.connect('ssl://localhost:' + (9080 + base_port));
 
 		ss.write("GET / HTTP/1.0");
 		assert.equal("GET / HTTP/1.0", ss.read());
@@ -150,34 +162,35 @@ describe('ssl', function() {
 		var sss = new ssl.Socket(crt, pk);
 		sss.verification = ssl.VERIFY_NONE;
 
-		var svr = new net.TcpServer(9082, function(s) {
+		var svr = new net.TcpServer(9082 + base_port, function(s) {
 			var ss = sss.accept(s);
 
-			fs.writeFile('net_temp_000001', str);
-			var f = fs.open('net_temp_000001');
+			fs.writeFile('net_temp_000001' + base_port, str);
+			var f = fs.open('net_temp_000001' + base_port);
 			assert.equal(f.copyTo(ss), str.length);
 
 			f.close();
 			ss.close();
 			s.close();
 		});
+		ss.push(svr.socket);
 		svr.asyncRun();
 
 		function t_conn() {
 			var c1 = new net.Socket();
-			c1.connect('127.0.0.1', 9082);
+			c1.connect('127.0.0.1', 9082 + base_port);
 
 			var ss = new ssl.Socket();
 			ss.connect(c1);
 
-			var f1 = fs.open('net_temp_000002', 'w');
+			var f1 = fs.open('net_temp_000002' + base_port, 'w');
 			assert.equal(ss.copyTo(f1), str.length);
 
 			ss.close();
 			c1.close();
 			f1.close();
 
-			assert.equal(str, fs.readFile('net_temp_000002'));
+			assert.equal(str, fs.readFile('net_temp_000002' + base_port));
 		}
 
 		for (var i = 0; i < 10; i++) {
@@ -185,54 +198,56 @@ describe('ssl', function() {
 			t_conn();
 		}
 
-		del('net_temp_000001');
-		del('net_temp_000002');
+		del('net_temp_000001' + base_port);
+		del('net_temp_000002' + base_port);
 	});
 
 	it("Handler", function() {
-		var svr = new net.TcpServer(9083, new ssl.Handler(crt, pk, function(s) {
+		var svr = new net.TcpServer(9083 + base_port, new ssl.Handler(crt, pk, function(s) {
 			var buf;
 
 			while (buf = s.read())
 				s.write(buf);
 		}));
+		ss.push(svr.socket);
 		svr.asyncRun();
 
 		for (var i = 0; i < 10; i++) {
 			var s1 = new net.Socket();
-			s1.connect("127.0.0.1", 9083);
+			s1.connect("127.0.0.1", 9083 + base_port);
 
-			var ss = new ssl.Socket();
-			ss.connect(s1);
+			var cs = new ssl.Socket();
+			cs.connect(s1);
 
-			ss.write("GET / HTTP/1.0");
-			assert.equal("GET / HTTP/1.0", ss.read());
+			cs.write("GET / HTTP/1.0");
+			assert.equal("GET / HTTP/1.0", cs.read());
 
-			ss.close();
+			cs.close();
 			s1.close();
 		}
 	});
 
 	it("Server", function() {
-		var svr = new ssl.Server(crt, pk, 9084, function(s) {
+		var svr = new ssl.Server(crt, pk, 9084 + base_port, function(s) {
 			var buf;
 
 			while (buf = s.read())
 				s.write(buf);
 		});
+		ss.push(svr.socket);
 		svr.asyncRun();
 
 		for (var i = 0; i < 10; i++) {
 			var s1 = new net.Socket();
-			s1.connect("127.0.0.1", 9084);
+			s1.connect("127.0.0.1", 9084 + base_port);
 
-			var ss = new ssl.Socket();
-			ss.connect(s1);
+			var cs = new ssl.Socket();
+			cs.connect(s1);
 
-			ss.write("GET / HTTP/1.0");
-			assert.equal("GET / HTTP/1.0", ss.read());
+			cs.write("GET / HTTP/1.0");
+			assert.equal("GET / HTTP/1.0", cs.read());
 
-			ss.close();
+			cs.close();
 			s1.close();
 		}
 	});

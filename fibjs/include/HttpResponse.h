@@ -18,9 +18,9 @@ class HttpResponse: public HttpResponse_base
 {
 
 public:
-    HttpResponse() :
-        m_message(true)
+    HttpResponse()
     {
+        m_message = new HttpMessage(true);
         clear();
         extMemory(4096);
     }
@@ -35,15 +35,17 @@ public:
     virtual result_t set_result(Variant newVal);
     virtual result_t get_body(obj_ptr<SeekableStream_base> &retVal);
     virtual result_t set_body(SeekableStream_base *newVal);
-    virtual result_t read(int32_t bytes, obj_ptr<Buffer_base> &retVal, exlib::AsyncEvent *ac);
-    virtual result_t readAll(obj_ptr<Buffer_base> &retVal, exlib::AsyncEvent *ac);
-    virtual result_t write(Buffer_base *data, exlib::AsyncEvent *ac);
+    virtual result_t read(int32_t bytes, obj_ptr<Buffer_base> &retVal, AsyncEvent *ac);
+    virtual result_t readAll(obj_ptr<Buffer_base> &retVal, AsyncEvent *ac);
+    virtual result_t write(Buffer_base *data, AsyncEvent *ac);
     virtual result_t get_length(int64_t &retVal);
     virtual result_t clear();
-    virtual result_t sendTo(Stream_base *stm, exlib::AsyncEvent *ac);
-    virtual result_t readFrom(BufferedStream_base *stm, exlib::AsyncEvent *ac);
+    virtual result_t sendTo(Stream_base *stm, AsyncEvent *ac);
+    virtual result_t readFrom(Stream_base *stm, AsyncEvent *ac);
     virtual result_t get_stream(obj_ptr<Stream_base> &retVal);
     virtual result_t get_response(obj_ptr<Message_base> &retVal);
+    virtual result_t get_lastError(std::string& retVal);
+    virtual result_t set_lastError(const char* newVal);
 
 public:
     // HttpMessage_base
@@ -52,6 +54,8 @@ public:
     virtual result_t get_headers(obj_ptr<HttpCollection_base> &retVal);
     virtual result_t get_keepAlive(bool &retVal);
     virtual result_t set_keepAlive(bool newVal);
+    virtual result_t get_upgrade(bool& retVal);
+    virtual result_t set_upgrade(bool newVal);
     virtual result_t get_maxHeadersCount(int32_t &retVal);
     virtual result_t set_maxHeadersCount(int32_t newVal);
     virtual result_t get_maxUploadSize(int32_t &retVal);
@@ -59,9 +63,9 @@ public:
     virtual result_t hasHeader(const char *name, bool &retVal);
     virtual result_t firstHeader(const char *name, Variant &retVal);
     virtual result_t allHeader(const char *name, obj_ptr<List_base> &retVal);
-    virtual result_t addHeader(v8::Local<v8::Object> map);
+    virtual result_t addHeader(Map_base* map);
     virtual result_t addHeader(const char *name, Variant value);
-    virtual result_t setHeader(v8::Local<v8::Object> map);
+    virtual result_t setHeader(Map_base* map);
     virtual result_t setHeader(const char *name, Variant value);
     virtual result_t removeHeader(const char *name);
 
@@ -72,9 +76,10 @@ public:
     virtual result_t get_cookies(obj_ptr<List_base> &retVal);
     virtual result_t addCookie(HttpCookie_base *cookie);
     virtual result_t redirect(const char *url);
+    virtual result_t sendHeader(Stream_base* stm, AsyncEvent* ac);
 
 public:
-    HttpMessage m_message;
+    obj_ptr<HttpMessage> m_message;
     int32_t m_status;
     obj_ptr<List_base> m_cookies;
 };

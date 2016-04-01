@@ -167,7 +167,7 @@ describe('crypto', function() {
 	describe('Cipher', function() {
 		function test_cipher(provider, file) {
 			it(file, function() {
-				var cases = encoding.jsonDecode(fs.readFile("crypto_case/" + file + ".json"));
+				var cases = encoding.json.decode(fs.readFile("crypto_case/" + file + ".json"));
 
 				cases.forEach(function(item) {
 					var c;
@@ -175,14 +175,14 @@ describe('crypto', function() {
 
 					if (item.length == 7)
 						c = new crypto.Cipher(provider, mode,
-							encoding.hexDecode(item[3]), encoding.hexDecode(item[6]));
+							encoding.hex.decode(item[3]), encoding.hex.decode(item[6]));
 					else if (item.length == 6)
 						c = new crypto.Cipher(provider, mode,
-							encoding.hexDecode(item[3]));
+							encoding.hex.decode(item[3]));
 
 					if (mode == crypto.CBC)
 						c.paddingMode(crypto.NOPADDING);
-					assert.equal(c[item[1]](encoding.hexDecode(item[4])).hex(), item[5], item[0]);
+					assert.equal(c[item[1]](encoding.hex.decode(item[4])).hex(), item[5], item[0]);
 				});
 
 			});
@@ -462,7 +462,7 @@ describe('crypto', function() {
 			cert.load(fs.readFile('cert_files/ca-bundle.crt'));
 			var s1 = cert.dump();
 
-			assert.deepEqual(s.slice(23), s1);
+			assert.deepEqual(s.slice(s.length - s1.length), s1);
 		});
 
 		it("root ca", function() {
@@ -478,7 +478,36 @@ describe('crypto', function() {
 			cert.loadRootCerts();
 			var s1 = cert.dump();
 
-			assert.deepEqual(s, s1.slice(23));
+			assert.deepEqual(s, s1.slice(s1.length - s.length));
+		});
+
+		it("load root ca times", function() {
+			function count(ca) {
+				var cnt = 1;
+				var ca1;
+
+				while (ca1 = ca.next) {
+					cnt++;
+					ca = ca1;
+				}
+
+				return cnt;
+			}
+
+			cert.clear();
+			assert.deepEqual(cert.dump(), []);
+
+			cert.loadRootCerts();
+			var cnt1 = count(cert);
+
+			cert.loadRootCerts();
+			assert.equal(cnt1, count(cert));
+
+			cert.clear();
+			assert.deepEqual(cert.dump(), []);
+
+			cert.loadRootCerts();
+			assert.equal(cnt1, count(cert));
 		});
 
 		it("unknown format", function() {

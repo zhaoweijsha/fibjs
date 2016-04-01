@@ -12,6 +12,8 @@ var coroutine = require("coroutine");
 var ssl = require("ssl");
 var crypto = require("crypto");
 
+var base_port = coroutine.vmid * 10000;
+
 var pk = new crypto.PKey();
 pk.genRsaKey(1024);
 
@@ -187,14 +189,14 @@ describe("http", function() {
 			[{
 				name: "test",
 				value: "value",
-				expires: new Date("2020-12-21T13:31:30")
+				expires: new Date("2020-12-21T13:31:30Z")
 			}, "test=value; expires=Mon, 21 Dec 2020 13:31:30 GMT"],
 			[{
 				name: "test",
 				value: "value",
 				domain: ".baoz.me",
 				path: "/rpc",
-				expires: new Date("2020-12-21T13:31:30"),
+				expires: new Date("2020-12-21T13:31:30Z"),
 				secure: true,
 				httpOnly: true
 			}, "test=value; expires=Mon, 21 Dec 2020 13:31:30 GMT; domain=.baoz.me; path=/rpc; secure; HttpOnly"]
@@ -535,6 +537,12 @@ describe("http", function() {
 				'b': ''
 			});
 
+			var c = get_form("GET /test HTTP/1.0\r\nContent-type:application/x-www-form-urlencoded\r\nContent-length:15\r\n\r\na=100&b=200+300");
+			assert.deepEqual(c.toJSON(), {
+				'a': '100',
+				'b': '200 300'
+			});
+
 			var c = get_form('GET /test HTTP/1.0\r\nContent-type:multipart/form-data;boundary=7d33a816d302b6\r\nContent-length:150\r\n\r\n--7d33a816d302b6\r\nContent-Disposition: form-data;name="a"\r\n\r\n100\r\n--7d33a816d302b6\r\nContent-Disposition: form-data;name="b"\r\n\r\n200\r\n--7d33a816d302b6\r\n');
 			assert.deepEqual(c.toJSON(), {
 				'a': '100',
@@ -586,6 +594,17 @@ describe("http", function() {
 			rep.sendTo(ms);
 			ms.rewind();
 			assert.equal(ms.read(), 'HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: 10\r\n\r\n0123456789');
+		});
+
+		it("response header only", function() {
+			var ms = new io.MemoryStream();
+
+			var rep = new http.Response();
+			rep.body.write("0123456789");
+
+			rep.sendHeader(ms);
+			ms.rewind();
+			assert.equal(ms.read(), 'HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: 10\r\n\r\n');
 		});
 
 		it("address", function() {
@@ -644,14 +663,18 @@ describe("http", function() {
 					st.wait(2);
 				}
 			});
-			svr = new net.TcpServer(8881, hdr);
+			svr = new net.TcpServer(8881 + base_port, hdr);
 
 			svr.asyncRun();
 		});
 
+		after(function() {
+			svr.socket.close();
+		});
+
 		beforeEach(function() {
 			c = new net.Socket();
-			c.connect('127.0.0.1', 8881);
+			c.connect('127.0.0.1', 8881 + base_port);
 
 			bs = new io.BufferedStream(c);
 			bs.EOL = "\r\n";
@@ -668,12 +691,40 @@ describe("http", function() {
 			return req;
 		}
 
+		function getStats(hdr) {
+			var o = hdr.stats.toJSON();
+			delete o.totalTime;
+			return o;
+		}
+
+		var throw_in_handler = false;
+		var err_400 = 0;
+		var err_404 = 0;
+		var err_500 = 0;
+
+		it("onerror", function() {
+			hdr.onerror({
+				400: function(v) {
+					err_400++;
+				},
+				404: function(v) {
+					if (throw_in_handler)
+						throw new Error('throw in error handler');
+					err_404++;
+				},
+				500: function(v) {
+					console.error(v.lastError);
+					err_500++;
+				}
+			});
+		});
+
 		it("normal request", function() {
 			c.write("GET / HTTP/1.0\r\n\r\n");
 			var req = get_response();
 			assert.equal(req.status, 200);
 
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.deepEqual(getStats(hdr), {
 				"total": 1,
 				"pendding": 0,
 				"request": 1,
@@ -690,7 +741,8 @@ describe("http", function() {
 			var req = get_response();
 			assert.equal(req.status, 400);
 
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.equal(err_400, 1);
+			assert.deepEqual(getStats(hdr), {
 				"total": 2,
 				"pendding": 0,
 				"request": 2,
@@ -707,7 +759,8 @@ describe("http", function() {
 			var req = get_response();
 			assert.equal(req.status, 404);
 
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.equal(err_404, 1);
+			assert.deepEqual(getStats(hdr), {
 				"total": 3,
 				"pendding": 0,
 				"request": 3,
@@ -724,7 +777,8 @@ describe("http", function() {
 			var req = get_response();
 			assert.equal(req.status, 500);
 
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.equal(err_500, 1);
+			assert.deepEqual(getStats(hdr), {
 				"total": 4,
 				"pendding": 0,
 				"request": 4,
@@ -744,7 +798,7 @@ describe("http", function() {
 
 			st.wait(1);
 
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.deepEqual(getStats(hdr), {
 				"total": 5,
 				"pendding": 1,
 				"request": 5,
@@ -757,7 +811,7 @@ describe("http", function() {
 
 			st.wait(3);
 			coroutine.sleep(50);
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.deepEqual(getStats(hdr), {
 				"total": 5,
 				"pendding": 0,
 				"request": 5,
@@ -774,7 +828,7 @@ describe("http", function() {
 			c.close();
 
 			coroutine.sleep(10);
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.deepEqual(getStats(hdr), {
 				"total": 6,
 				"pendding": 0,
 				"request": 6,
@@ -788,7 +842,7 @@ describe("http", function() {
 
 		it("reset stats", function() {
 			hdr.stats.reset();
-			assert.deepEqual(hdr.stats.toJSON(), {
+			assert.deepEqual(getStats(hdr), {
 				"total": 6,
 				"pendding": 0,
 				"request": 0,
@@ -799,11 +853,22 @@ describe("http", function() {
 				"error_500": 0
 			});
 		});
+
+		it("error in error handler", function() {
+			err_404 = 0;
+			throw_in_handler = true;
+			c.write("GET /not_found HTTP/1.0\r\n\r\n");
+			var req = get_response();
+			assert.equal(req.status, 404);
+
+			assert.equal(err_404, 0);
+		});
+
 	});
 
 	describe("file handler", function() {
 		var hfHandler = new http.fileHandler('./');
-		var url = 'test.html';
+		var url = base_port + 'test.html';
 		var rep;
 
 		function hfh_test(url, headers) {
@@ -817,10 +882,10 @@ describe("http", function() {
 
 		function clean() {
 			try {
-				fs.unlink('test.html');
+				fs.unlink(base_port + 'test.html');
 			} catch (e) {};
 			try {
-				fs.unlink('test.html.gz');
+				fs.unlink(base_port + 'test.html.gz');
 			} catch (e) {};
 		}
 
@@ -834,13 +899,13 @@ describe("http", function() {
 		});
 
 		it("normal", function() {
-			fs.writeFile('test.html', 'test html file');
+			fs.writeFile(base_port + 'test.html', 'test html file');
 
 			rep = hfh_test(url);
 			assert.equal(200, rep.status);
 			assert.equal(14, rep.length);
 
-			assert.deepEqual(new Date(rep.firstHeader('Last-Modified')), fs.stat('test.html').mtime);
+			assert.deepEqual(new Date(rep.firstHeader('Last-Modified')), fs.stat(base_port + 'test.html').mtime);
 		});
 
 		it("not modified", function() {
@@ -864,7 +929,7 @@ describe("http", function() {
 
 		it("pre-gzip", function() {
 			var sgz = 'gz test file';
-			var gz = fs.open('test.html.gz', 'w');
+			var gz = fs.open(base_port + 'test.html.gz', 'w');
 			gz.write(zlib.gzip(new Buffer(sgz)));
 			gz.close();
 
@@ -881,7 +946,7 @@ describe("http", function() {
 		});
 
 		it("don't gzip small file", function() {
-			fs.unlink('test.html.gz');
+			fs.unlink(base_port + 'test.html.gz');
 
 			var rep = hfh_test(url, {
 				'Accept-Encoding': 'deflate,gzip'
@@ -893,9 +958,15 @@ describe("http", function() {
 	});
 
 	describe("server/request", function() {
-		it("server", function() {
-			new http.Server(8882, function(r) {
-				if (r.address != "/gzip_test") {
+		var svr;
+
+		before(function() {
+			svr = new http.Server(8882 + base_port, function(r) {
+				if (r.address == "/redirect") {
+					r.response.redirect("http://127.0.0.1:" + (8882 + base_port) + "/request");
+				} else if (r.address == "/redirect1") {
+					r.response.redirect("http://127.0.0.1:" + (8882 + base_port) + "/redirect1");
+				} else if (r.address != "/gzip_test") {
 					r.response.body.write(r.address);
 					r.body.copyTo(r.response.body);
 					if (r.hasHeader("test_header"))
@@ -904,40 +975,54 @@ describe("http", function() {
 					r.response.addHeader("Content-Type", "text/html");
 					r.response.body.write("0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 				}
-			}).asyncRun();
+			});
+			svr.asyncRun();
+		});
+
+		after(function() {
+			svr.socket.close();
 		});
 
 		describe("request", function() {
 			it("simple", function() {
-				assert.equal(http.request("GET", "http://127.0.0.1:8882/request").body.read().toString(),
+				assert.equal(http.request("GET", "http://127.0.0.1:" + (8882 + base_port) + "/request").body.read().toString(),
 					"/request");
 			});
 
+			it("redirect", function() {
+				assert.equal(http.request("GET", "http://127.0.0.1:" + (8882 + base_port) + "/redirect").body.read().toString(),
+					"/request");
+
+				assert.throws(function() {
+					http.request("GET", "http://127.0.0.1:" + (8882 + base_port) + "/redirect1")
+				});
+			});
+
 			it("body", function() {
-				assert.equal(http.request("GET", "http://127.0.0.1:8882/request:", "body").body.read().toString(),
+				assert.equal(http.request("GET", "http://127.0.0.1:" + (8882 + base_port) + "/request:", "body").body.read().toString(),
 					"/request:body");
 			});
 
 			it("header", function() {
-				assert.equal(http.request("GET", "http://127.0.0.1:8882/request:", {
+				assert.equal(http.request("GET", "http://127.0.0.1:" + (8882 + base_port) + "/request:", {
 					"test_header": "header"
 				}).body.read().toString(), "/request:header");
 			});
 
 			it("gzip", function() {
-				assert.equal(http.get("http://127.0.0.1:8882/gzip_test").body.read().toString(),
+				assert.equal(http.get("http://127.0.0.1:" + (8882 + base_port) + "/gzip_test").body.read().toString(),
 					"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 			});
 		});
 
 		describe("get", function() {
 			it("simple", function() {
-				assert.equal(http.get("http://127.0.0.1:8882/request").body.read().toString(),
+				assert.equal(http.get("http://127.0.0.1:" + (8882 + base_port) + "/request").body.read().toString(),
 					"/request");
 			});
 
 			it("header", function() {
-				assert.equal(http.get("http://127.0.0.1:8882/request:", {
+				assert.equal(http.get("http://127.0.0.1:" + (8882 + base_port) + "/request:", {
 					"test_header": "header"
 				}).body.read().toString(), "/request:header");
 			});
@@ -945,12 +1030,12 @@ describe("http", function() {
 
 		describe("post", function() {
 			it("body", function() {
-				assert.equal(http.post("http://127.0.0.1:8882/request:", "body").body.read().toString(),
+				assert.equal(http.post("http://127.0.0.1:" + (8882 + base_port) + "/request:", "body").body.read().toString(),
 					"/request:body");
 			});
 
 			it("header", function() {
-				assert.equal(http.post("http://127.0.0.1:8882/request:", "", {
+				assert.equal(http.post("http://127.0.0.1:" + (8882 + base_port) + "/request:", "", {
 					"test_header": "header"
 				}).body.read().toString(), "/request:header");
 			});
@@ -958,10 +1043,13 @@ describe("http", function() {
 	});
 
 	describe("https server/https request", function() {
-		ssl.ca.load(ca_pem);
 
-		it("server", function() {
-			new http.HttpsServer(crt, pk, 8883, function(r) {
+		var svr;
+
+		before(function() {
+			ssl.ca.load(ca_pem);
+
+			svr = new http.HttpsServer(crt, pk, 8883 + base_port, function(r) {
 				if (r.address != "/gzip_test") {
 					r.response.body.write(r.address);
 					r.body.copyTo(r.response.body);
@@ -971,40 +1059,46 @@ describe("http", function() {
 					r.response.addHeader("Content-Type", "text/html");
 					r.response.body.write("0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 				}
-			}).asyncRun();
+			});
+			svr.asyncRun();
+		});
+
+		after(function() {
+			svr.socket.close();
+			ssl.ca.clear();
 		});
 
 		describe("request", function() {
 			it("simple", function() {
-				assert.equal(http.request("GET", "https://127.0.0.1:8883/request").body.read().toString(),
+				assert.equal(http.request("GET", "https://localhost:" + (8883 + base_port) + "/request").body.read().toString(),
 					"/request");
 			});
 
 			it("body", function() {
-				assert.equal(http.request("GET", "https://127.0.0.1:8883/request:", "body").body.read().toString(),
+				assert.equal(http.request("GET", "https://localhost:" + (8883 + base_port) + "/request:", "body").body.read().toString(),
 					"/request:body");
 			});
 
 			it("header", function() {
-				assert.equal(http.request("GET", "https://127.0.0.1:8883/request:", {
+				assert.equal(http.request("GET", "https://localhost:" + (8883 + base_port) + "/request:", {
 					"test_header": "header"
 				}).body.read().toString(), "/request:header");
 			});
 
 			it("gzip", function() {
-				assert.equal(http.get("https://127.0.0.1:8883/gzip_test").body.read().toString(),
+				assert.equal(http.get("https://localhost:" + (8883 + base_port) + "/gzip_test").body.read().toString(),
 					"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
 			});
 		});
 
 		describe("get", function() {
 			it("simple", function() {
-				assert.equal(http.get("https://127.0.0.1:8883/request").body.read().toString(),
+				assert.equal(http.get("https://localhost:" + (8883 + base_port) + "/request").body.read().toString(),
 					"/request");
 			});
 
 			it("header", function() {
-				assert.equal(http.get("https://127.0.0.1:8883/request:", {
+				assert.equal(http.get("https://localhost:" + (8883 + base_port) + "/request:", {
 					"test_header": "header"
 				}).body.read().toString(), "/request:header");
 			});
@@ -1013,13 +1107,13 @@ describe("http", function() {
 		describe("post", function() {
 			it("body", function() {
 				assert.equal(http.post(
-						"https://127.0.0.1:8883/request:", "body").body
+						"https://localhost:" + (8883 + base_port) + "/request:", "body").body
 					.read().toString(), "/request:body");
 			});
 
 			it("header", function() {
 				assert.equal(http.post(
-					"https://127.0.0.1:8883/request:", "", {
+					"https://localhost:" + (8883 + base_port) + "/request:", "", {
 						"test_header": "header"
 					}).body.read().toString(), "/request:header");
 			});
@@ -1027,4 +1121,4 @@ describe("http", function() {
 	});
 });
 
-//test.run(console.DEBUG);
+// test.run(console.DEBUG);
